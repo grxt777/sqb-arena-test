@@ -1,0 +1,14 @@
+# Тяжёлые данные — не пушим
+atm_transactions_enriched.csv
+*.joblib
+*.safetensors
+
+# Python кэш
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Временные файлы
+*.log
+*.tmp

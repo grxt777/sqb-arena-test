@@ -1,0 +1,20 @@
+ATM Cash-Out Prediction — Model Report
+==================================================
+Horizon:      24h (12 steps)
+Cash-out thr: 20%
+Train end:    2024-09-30
+Val end:      2024-11-30
+
+── Validation ─────────────────────────────
+  Regression  MAE:          11,172,417 сум
+  Regression  RMSE:         13,639,481 сум
+  Regression  MAPE:             21.39%
+  Classifier  ROC-AUC: 0.9306
+  Classifier  AUC-PR:  0.9612
+
+── Test ────────────────────────────────────
+  Regression  MAE:          11,032,147 сум
+  Regression  RMSE:         13,459,927 сум
+  Regression  MAPE:             21.15%
+  Classifier  ROC-AUC: 0.9357
+  Classifier  AUC-PR:  0.9579

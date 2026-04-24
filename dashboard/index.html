@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATM Dashboard — Yunusobod, Toshkent</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet Routing Machine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- PapaParse (не используется, оставлен для совместимости) -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> -->
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.3px;
+    }
+    header .badge {
+      background: #3b82f6;
+      color: #fff;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    header .spacer { flex: 1; }
+    header .time-label {
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    #sim-time {
+      font-size: 13px;
+      color: #60a5fa;
+      font-weight: 600;
+    }
+
+    /* ── Layout ── */
+    .main {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left Panel ── */
+    .left-panel {
+      background: #1a1d27;
+      border-right: 1px solid #2d3148;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 16px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #64748b;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .atm-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .atm-list::-webkit-scrollbar { width: 4px; }
+    .atm-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+    .atm-card {
+      background: #212435;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .atm-card:hover { border-color: #3b82f6; background: #252840; }
+    .atm-card.selected { border-color: #3b82f6; background: #1e3a5f; }
+    .atm-card.critical { border-left: 3px solid #ef4444; }
+    .atm-card.warning  { border-left: 3px solid #f59e0b; }
+    .atm-card.ok       { border-left: 3px solid #22c55e; }
+
+    .atm-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .atm-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+      line-height: 1.3;
+    }
+    .atm-card-bank {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .dot-ok       { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .dot-warning  { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
+    .dot-critical { background: #ef4444; box-shadow: 0 0 6px #ef444488; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .atm-card-bar-wrap {
+      margin-top: 10px;
+    }
+    .bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .bar-labels .val { color: #e2e8f0; font-weight: 600; }
+    .bar-bg {
+      background: #2d3148;
+      border-radius: 99px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.4s;
+    }
+    .fill-ok       { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .fill-warning  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .fill-critical { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+    .atm-card-footer {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #64748b;
+      display: flex;
+      gap: 12px;
+    }
+    .atm-card-footer .highlight { color: #60a5fa; }
+
+    /* ── Bottom of left panel — route controls ── */
+    .route-panel {
+      border-top: 1px solid #2d3148;
+      padding: 14px 16px;
+      flex-shrink: 0;
+    }
+    .route-panel h3 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+    .btn {
+      width: 100%;
+      padding: 9px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      margin-bottom: 6px;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-danger  { background: #ef4444; color: #fff; }
+    .btn-outline {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid #2d3148;
+    }
+    #route-info {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 8px;
+      min-height: 16px;
+    }
+
+    /* ── Map ── */
+    .map-area {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    #map {
+      flex: 1;
+    }
+
+    /* ── Chart overlay ── */
+    .chart-panel {
+      background: #1a1d27;
+      border-top: 1px solid #2d3148;
+      padding: 14px 20px;
+      height: 170px;
+      flex-shrink: 0;
+    }
+    .chart-panel h3 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    #balance-chart { height: 120px !important; }
+
+    /* ── Loader ── */
+    #loader {
+      position: fixed;
+      inset: 0;
+      background: #0f1117;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 9999;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #2d3148;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loader p { color: #64748b; font-size: 14px; }
+
+    /* ── Popup ── */
+    .leaflet-popup-content-wrapper {
+      background: #1e2235 !important;
+      border: 1px solid #3b82f6 !important;
+      color: #e2e8f0 !important;
+      border-radius: 10px !important;
+    }
+    .leaflet-popup-tip { background: #1e2235 !important; }
+    .popup-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+    .popup-row { font-size: 12px; color: #94a3b8; margin: 3px 0; }
+    .popup-row span { color: #e2e8f0; font-weight: 600; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 1px;
+      background: #0f1117;
+      flex-shrink: 0;
+    }
+    .stat-box {
+      flex: 1;
+      background: #1a1d27;
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 20px; font-weight: 700; color: #fff; }
+    .stat-value.red { color: #f87171; }
+    .stat-value.yellow { color: #fbbf24; }
+    .stat-value.green { color: #4ade80; }
+
+    /* ── Route sidebar (overlay on map) ── */
+    #route-sidebar {
+      position: absolute;
+      top: 10px; right: 10px;
+      width: 300px;
+      max-height: calc(100% - 20px);
+      background: #1a1d27ee;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      backdrop-filter: blur(6px);
+    }
+    #route-sidebar.open { display: flex; }
+
+    .rs-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .rs-header h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .rs-close {
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .rs-close:hover { color: #e2e8f0; }
+
+    .rs-summary {
+      padding: 10px 14px;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .rs-stat { display: flex; flex-direction: column; gap: 2px; }
+    .rs-stat-label { font-size: 10px; color: #64748b; text-transform: uppercase; }
+    .rs-stat-val   { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+
+    .rs-cars {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .rs-cars::-webkit-scrollbar { width: 4px; }
+    .rs-cars::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+    .rs-car {
+      margin-bottom: 12px;
+    }
+    .rs-car-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 8px 8px 0 0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .rs-car-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .rs-stops {
+      border: 1px solid #2d3148;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      overflow: hidden;
+    }
+    .rs-stop {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-bottom: 1px solid #2d3148;
+      font-size: 11px;
+    }
+    .rs-stop:last-child { border-bottom: none; }
+    .rs-stop-num {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800;
+      flex-shrink: 0;
+      color: #fff;
+    }
+    .rs-stop-name  { flex: 1; color: #cbd5e1; line-height: 1.3; }
+    .rs-stop-bal   { font-weight: 700; font-size: 11px; }
+    .bal-crit   { color: #f87171; }
+    .bal-warn   { color: #fbbf24; }
+    .bal-ok     { color: #4ade80; }
+
+    .rs-depot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      font-size: 11px;
+      color: #64748b;
+      border-bottom: 1px solid #2d3148;
+    }
+    .rs-depot-icon { font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- Loader -->
+<div id="loader">
+  <div class="spinner"></div>
+  <p>Загрузка данных банкоматов...</p>
+  <p style="font-size:12px;color:#334155;margin-top:4px">Парсинг CSV (~394K строк)</p>
+</div>
+
+<header>
+  <h1>ATM Monitor</h1>
+  <span class="badge">Yunusobod · Toshkent</span>
+  <div class="spacer"></div>
+  <span class="time-label">Симуляция:&nbsp;</span>
+  <span id="sim-time">—</span>
+</header>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="stat-box">
+    <span class="stat-label">Всего ATM</span>
+    <span class="stat-value" id="s-total">—</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">Критично</span>
+    <span class="stat-value red" id="s-critical">—</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">Предупреждение</span>
+    <span class="stat-value yellow" id="s-warning">—</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">В норме</span>
+    <span class="stat-value green" id="s-ok">—</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-label">Инкассаций сегодня</span>
+    <span class="stat-value" id="s-inc">—</span>
+  </div>
+  <div class="stat-box" style="border-left:2px solid #6366f1">
+    <span class="stat-label" style="color:#818cf8">🤖 ML · Высокий риск</span>
+    <span class="stat-value" id="s-ml-high" style="color:#818cf8">—</span>
+  </div>
+  <div class="stat-box" style="border-left:2px solid #6366f1">
+    <span class="stat-label" style="color:#818cf8">🤖 ML · Средний риск</span>
+    <span class="stat-value" id="s-ml-med" style="color:#818cf8">—</span>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Left: ATM list -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <span>Банкоматы</span>
+      <span id="list-count" style="color:#3b82f6;font-size:11px;font-weight:700;"></span>
+    </div>
+    <div class="atm-list" id="atm-list"></div>
+
+    <div class="route-panel">
+      <h3>Маршрут инкассации</h3>
+
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <div style="flex:1;">
+          <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Машин</div>
+          <select id="num-cars" style="width:100%;background:#212435;border:1px solid #2d3148;color:#e2e8f0;border-radius:6px;padding:5px;font-size:12px;">
+            <option value="1">1 машина</option>
+            <option value="2" selected>2 машины</option>
+            <option value="3">3 машины</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Скорость</div>
+          <select id="speed-kmh" style="width:100%;background:#212435;border:1px solid #2d3148;color:#e2e8f0;border-radius:6px;padding:5px;font-size:12px;">
+            <option value="20">20 км/ч</option>
+            <option value="30" selected>30 км/ч</option>
+            <option value="40">40 км/ч</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-danger"  onclick="buildRoute('critical')" style="margin-bottom:4px;">
+        🔴 Только критичные
+      </button>
+      <button class="btn btn-primary" onclick="buildRoute('warning')" style="margin-bottom:4px;">
+        🟡 Критичные + предупреждения
+      </button>
+      <button class="btn btn-outline" onclick="buildRoute('all')" style="margin-bottom:6px;">
+        Все банкоматы
+      </button>
+      <button class="btn btn-outline" onclick="clearRoute()">✕ Очистить маршрут</button>
+
+      <div style="margin-top:8px;padding:8px;background:#212435;border-radius:6px;font-size:11px;color:#64748b;line-height:1.5;">
+        Депо: <span style="color:#60a5fa">Yunusobod, ул. Амира Темура</span><br>
+        Алгоритм: приоритет по % остатка → ближайший сосед
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Map + Chart -->
+  <div class="map-area">
+    <div id="map"></div>
+
+    <!-- Route Sidebar -->
+    <div id="route-sidebar">
+      <div class="rs-header">
+        <h4>🚐 Маршруты инкассации</h4>
+        <button class="rs-close" onclick="closeSidebar()">✕</button>
+      </div>
+      <div class="rs-summary">
+        <div class="rs-stat">
+          <span class="rs-stat-label">Машин</span>
+          <span class="rs-stat-val" id="rs-cars-count">—</span>
+        </div>
+        <div class="rs-stat">
+          <span class="rs-stat-label">Остановок</span>
+          <span class="rs-stat-val" id="rs-stops-count">—</span>
+        </div>
+        <div class="rs-stat">
+          <span class="rs-stat-label">~Расстояние</span>
+          <span class="rs-stat-val" id="rs-distance">—</span>
+        </div>
+        <div class="rs-stat">
+          <span class="rs-stat-label">~Время</span>
+          <span class="rs-stat-val" id="rs-time">—</span>
+        </div>
+      </div>
+      <div class="rs-cars" id="rs-cars-list"></div>
+    </div>
+    <div class="chart-panel">
+      <h3 id="chart-title">Остаток наличных — выберите банкомат</h3>
+      <canvas id="balance-chart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+
+const ATM_META = [
+  { id:"atm001", name:"Turon Telecom", bank:"Turon Bank", address:"Turon Telecom", lat:41.3748229, lon:69.2988445, capacity:35000000 },
+  { id:"atm002", name:"Unknown #2", bank:"Unknown", address:"Unknown #2", lat:41.3331362, lon:69.2609006, capacity:50000000 },
+  { id:"atm003", name:"Unknown #3", bank:"Unknown", address:"Unknown #3", lat:41.3639912, lon:69.290124, capacity:50000000 },
+  { id:"atm004", name:"Unknown #4", bank:"Unknown", address:"Unknown #4", lat:41.3671007, lon:69.2910933, capacity:50000000 },
+  { id:"atm005", name:"Unknown #5", bank:"Unknown", address:"Unknown #5", lat:41.3339645, lon:69.3020418, capacity:50000000 },
+  { id:"atm006", name:"Ipak Yo‘li Bank", bank:"Ipak Yo‘li Bank", address:"Ipak Yo‘li Bank", lat:41.363548, lon:69.2887494, capacity:50000000 },
+  { id:"atm007", name:"IpotekaBank", bank:"Ipoteka Bank", address:"IpotekaBank", lat:41.3669084, lon:69.2911847, capacity:55000000 },
+  { id:"atm008", name:"OFB", bank:"Orient Finans Bank", address:"OFB", lat:41.3327745, lon:69.283731, capacity:40000000 },
+  { id:"atm009", name:"Asia Alliance Bank", bank:"Asia Alliance Bank", address:"Asia Alliance Bank", lat:41.3664184, lon:69.2864658, capacity:45000000 },
+  { id:"atm010", name:"хамкор Банк #10", bank:"хамкор Банк", address:"хамкор Банк #10", lat:41.3637761, lon:69.2976758, capacity:50000000 },
+  { id:"atm011", name:"Юнусабадский центр банковских услуг #11", bank:"Юнусабадский центр банковских услуг", address:"Юнусабадский центр банковских услуг #11", lat:41.3662339, lon:69.2858109, capacity:50000000 },
+  { id:"atm012", name:"агробанк #12", bank:"агробанк", address:"агробанк #12", lat:41.3658386, lon:69.2857591, capacity:50000000 },
+  { id:"atm013", name:"Savdogarbank", bank:"Savdogarbank", address:"Savdogarbank", lat:41.3474942, lon:69.286753, capacity:35000000 },
+  { id:"atm014", name:"Юнусабадский центр банковских услуг #14", bank:"Юнусабадский центр банковских услуг", address:"Юнусабадский центр банковских услуг #14", lat:41.3609751, lon:69.2777842, capacity:50000000 },
+  { id:"atm015", name:"Шахристанский центр банковских услуг #15", bank:"Шахристанский центр банковских услуг", address:"Шахристанский центр банковских услуг #15", lat:41.3534733, lon:69.2969781, capacity:50000000 },
+  { id:"atm016", name:"IPAK YO'LI BANKI", bank:"Ipak Yo'li Bank", address:"IPAK YO'LI BANKI", lat:41.3349194, lon:69.2650491, capacity:60000000 },
+  { id:"atm017", name:"IPAK YO'LI BANKI", bank:"Ipak Yo'li Bank", address:"IPAK YO'LI BANKI", lat:41.350856, lon:69.2883843, capacity:60000000 },
+  { id:"atm018", name:"IPAK YO'LI BANKI", bank:"Ipak Yo'li Bank", address:"IPAK YO'LI BANKI", lat:41.3744842, lon:69.2959416, capacity:60000000 },
+  { id:"atm019", name:"IPAK YO'LI BANKI", bank:"Ipak Yo'li Bank", address:"IPAK YO'LI BANKI", lat:41.3408644, lon:69.2933142, capacity:60000000 },
+  { id:"atm020", name:"Ipak Yo'li Bank #20", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #20", lat:41.3381256, lon:69.2728383, capacity:60000000 },
+  { id:"atm021", name:"Ipak Yo'li Bank #21", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #21", lat:41.3714788, lon:69.3111723, capacity:60000000 },
+  { id:"atm022", name:"Ipak Yo'li Bank #22", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #22", lat:41.3373523, lon:69.2837333, capacity:60000000 },
+  { id:"atm023", name:"Ipak Yo'li Bank #23", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #23", lat:41.3723644, lon:69.311564, capacity:60000000 },
+  { id:"atm024", name:"Ipak Yo'li Bank #24", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #24", lat:41.3346616, lon:69.286201, capacity:60000000 },
+  { id:"atm025", name:"IPAK YO'LI BANKI", bank:"Ipak Yo'li Bank", address:"IPAK YO'LI BANKI", lat:41.3744698, lon:69.3050784, capacity:60000000 },
+  { id:"atm026", name:"Unknown #26", bank:"Unknown", address:"Unknown #26", lat:41.3345287, lon:69.2850718, capacity:50000000 },
+  { id:"atm027", name:"Unknown #27", bank:"Unknown", address:"Unknown #27", lat:41.3349718, lon:69.286142, capacity:50000000 },
+  { id:"atm028", name:"Unknown #28", bank:"Unknown", address:"Unknown #28", lat:41.3717123, lon:69.3118911, capacity:50000000 },
+  { id:"atm029", name:"Unknown #29", bank:"Unknown", address:"Unknown #29", lat:41.3718129, lon:69.3109311, capacity:50000000 },
+  { id:"atm030", name:"Unknown #30", bank:"Unknown", address:"Unknown #30", lat:41.3656856, lon:69.294607, capacity:50000000 },
+  { id:"atm031", name:"Unknown #31", bank:"Unknown", address:"Unknown #31", lat:41.3385807, lon:69.2720496, capacity:50000000 },
+  { id:"atm032", name:"Unknown #32", bank:"Unknown", address:"Unknown #32", lat:41.3626579, lon:69.2881187, capacity:50000000 },
+  { id:"atm033", name:"IPAK YO'LI BANKI", bank:"Ipak Yo'li Bank", address:"IPAK YO'LI BANKI", lat:41.3730126, lon:69.2727042, capacity:60000000 },
+  { id:"atm034", name:"Ipak Yo'li Bank #34", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #34", lat:41.3413094, lon:69.2686272, capacity:60000000 },
+  { id:"atm035", name:"Unknown #35", bank:"Unknown", address:"Unknown #35", lat:41.3723966, lon:69.3116819, capacity:50000000 },
+  { id:"atm036", name:"Kapitalbank", bank:"Kapitalbank", address:"Kapitalbank", lat:41.331317, lon:69.2765674, capacity:50000000 },
+  { id:"atm037", name:"Ipak Yo'li Bank #37", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #37", lat:41.3455986, lon:69.2612055, capacity:60000000 },
+  { id:"atm038", name:"Ipak Yo'li Bank #38", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #38", lat:41.3714426, lon:69.3193745, capacity:60000000 },
+  { id:"atm039", name:"Ipak Yo'li Bank #39", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #39", lat:41.3691277, lon:69.2659141, capacity:60000000 },
+  { id:"atm040", name:"Ipak Yo'li Bank #40", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #40", lat:41.3636584, lon:69.2738816, capacity:60000000 },
+  { id:"atm041", name:"Ipak Yo'li Bank #41", bank:"Ipak Yo'li Bank", address:"Ipak Yo'li Bank #41", lat:41.3601826, lon:69.2804203, capacity:60000000 },
+  { id:"atm042", name:"Гарант банк #42", bank:"Гарант банк", address:"Гарант банк #42", lat:41.3636041, lon:69.2885533, capacity:50000000 },
+  { id:"atm043", name:"Unknown #43", bank:"Unknown", address:"Unknown #43", lat:41.3634269, lon:69.2875984, capacity:50000000 },
+  { id:"atm044", name:"Orient Finans Bank (OFB)", bank:"Orient Finans Bank", address:"Orient Finans Bank (OFB)", lat:41.361266, lon:69.2897211, capacity:40000000 },
+  { id:"atm045", name:"AVO", bank:"AVO", address:"AVO", lat:41.3716421, lon:69.3111385, capacity:30000000 },
+];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+
+let allData       = {};
+let atmState      = {};
+let mlPredictions = {};
+let timeIndex     = 0;
+let timeSteps     = [];
+let simTimer      = null;
+let selectedId    = null;
+let markers       = {};
+let chart         = null;
+
+// ═══════════════════════════════════════════════════════════
+// MAP INIT
+// ═══════════════════════════════════════════════════════════
+
+const map = L.map('map', { zoomControl: true }).setView([41.3510, 69.2900], 14);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+function makeIcon(status) {
+  const colors = { ok:'#22c55e', warning:'#f59e0b', critical:'#ef4444' };
+  const c = colors[status] || '#94a3b8';
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:28px;height:28px;border-radius:50%;
+      background:${c};border:3px solid #fff;
+      box-shadow:0 0 12px ${c}99;
+      display:flex;align-items:center;justify-content:center;
+      font-size:12px;font-weight:800;color:#fff;
+    ">A</div>`,
+    iconSize: [28,28], iconAnchor: [14,14],
+  });
+}
+
+function initMarkers() {
+  ATM_META.forEach(atm => {
+    const m = L.marker([atm.lat, atm.lon], { icon: makeIcon('ok') })
+      .addTo(map)
+      .on('click', () => selectAtm(atm.id));
+    markers[atm.id] = m;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOAD CSV
+// ═══════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════
+// WEBSOCKET — получаем данные с FastAPI сервера
+// ═══════════════════════════════════════════════════════════
+
+const API_BASE = 'http://localhost:8000';
+const WS_URL   = 'ws://localhost:8000/ws/live';
+let   ws       = null;
+let   wsMode   = false;   // true = WebSocket активен
+
+function connectWebSocket() {
+  const loaderP = document.querySelector('#loader p');
+  if (loaderP) loaderP.textContent = 'Подключение к API...';
+
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    console.log('WebSocket connected');
+    wsMode = true;
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    handleServerMessage(msg);
+  };
+
+  ws.onerror = () => {
+    console.warn('WebSocket недоступен — fallback на JSON-файлы');
+    ws = null;
+    wsMode = false;
+    loadFromJSON();
+  };
+
+  ws.onclose = () => {
+    if (wsMode) {
+      console.warn('WebSocket закрыт, переподключение через 3с...');
+      setTimeout(connectWebSocket, 3000);
+    }
+  };
+}
+
+function handleServerMessage(msg) {
+  if (msg.type === 'snapshot' || msg.type === 'tick') {
+    // Обновляем мета-данные ATM из сервера
+    if (msg.meta) {
+      Object.entries(msg.meta).forEach(([id, m]) => {
+        const atmEntry = ATM_META.find(a => a.id === id);
+        if (!atmEntry) {
+          ATM_META.push({
+            id: id, name: m.name, bank: m.bank,
+            address: m.address, lat: m.lat, lon: m.lon, capacity: m.capacity,
+          });
+        }
+      });
+    }
+
+    // Обновляем ML-прогнозы
+    if (msg.predictions) {
+      Object.entries(msg.predictions).forEach(([id, p]) => {
+        mlPredictions[id] = p;
+      });
+    }
+
+    // Обновляем текущее состояние каждого ATM
+    if (msg.states) {
+      Object.entries(msg.states).forEach(([id, st]) => {
+        const atm = ATM_META.find(a => a.id === id);
+        if (!atm) return;
+
+        const pct = st.balance / atm.capacity;
+        let status = 'ok';
+        if (pct < 0.20) status = 'critical';
+        else if (pct < 0.40) status = 'warning';
+
+        atmState[id] = {
+          balance:        st.balance,
+          pct:            pct,
+          status:         status,
+          lastInc:        st.last_incassation || 'нет данных',
+          isIncNow:       !!st.is_incassation,
+          isBreakdown:    !!st.is_breakdown,
+          capacity:       atm.capacity,
+          hoursToEmpty:   st.hours_to_empty,
+        };
+
+        if (markers[id]) markers[id].setIcon(makeIcon(status));
+      });
+
+      // Статистика
+      const states = Object.values(atmState);
+      document.getElementById('s-total').textContent    = states.length;
+      document.getElementById('s-critical').textContent = states.filter(s => s.status === 'critical').length;
+      document.getElementById('s-warning').textContent  = states.filter(s => s.status === 'warning').length;
+      document.getElementById('s-ok').textContent       = states.filter(s => s.status === 'ok').length;
+      document.getElementById('s-inc').textContent      = states.filter(s => s.isIncNow).length;
+
+      const mlVals = Object.values(mlPredictions);
+      if (mlVals.length > 0) {
+        document.getElementById('s-ml-high').textContent = mlVals.filter(m => m.risk_label === 'HIGH').length;
+        document.getElementById('s-ml-med').textContent  = mlVals.filter(m => m.risk_label === 'MEDIUM').length;
+      }
+    }
+
+    // Время симуляции
+    if (msg.sim) {
+      const ts = msg.sim.current_timestamp;
+      document.getElementById('sim-time').textContent =
+        new Date(ts).toLocaleString('ru-RU', {
+          day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    // Первый снапшот — убираем лоадер и инициализируем карту
+    if (msg.type === 'snapshot') {
+      document.getElementById('loader').style.display = 'none';
+      if (Object.keys(markers).length === 0) initMarkers();
+    }
+
+    renderList();
+    if (selectedId) updateChart(selectedId);
+  }
+
+  if (msg.type === 'route') {
+    renderWSRoute(msg.data);
+  }
+
+  if (msg.type === 'history') {
+    renderWSHistory(msg.atm_id, msg.data);
+  }
+}
+
+// Fallback — JSON-файлы если API недоступен
+async function loadFromJSON() {
+  const loaderP = document.querySelector('#loader p');
+  try {
+    if (loaderP) loaderP.textContent = 'API недоступен — загружаем JSON...';
+    const tsRes = await fetch('data/timeseries.json');
+    if (!tsRes.ok) throw new Error('JSON not found');
+    const tsData = await tsRes.json();
+
+    const times = new Set();
+    Object.keys(tsData).forEach(id => {
+      tsData[id].forEach(r => times.add(r.transactionTime));
+    });
+    allData   = tsData;
+    timeSteps = [...times].sort();
+
+    try {
+      const predRes = await fetch('data/predictions.json');
+      if (predRes.ok) mlPredictions = await predRes.json();
+    } catch (_) {}
+
+    document.getElementById('loader').style.display = 'none';
+    startSimulation();
+  } catch (err) {
+    console.warn('JSON также недоступен, синтетика:', err);
+    generateSyntheticData();
+    document.getElementById('loader').style.display = 'none';
+    startSimulation();
+  }
+}
+
+function generateSyntheticData() {
+  const start = new Date('2024-10-01');
+  const times = [];
+  for (let i = 0; i < 24 * 30; i++) {
+    times.push(new Date(start.getTime() + i * 2 * 3600_000).toISOString());
+  }
+  timeSteps = times;
+  ATM_META.forEach(atm => {
+    let bal = atm.capacity * 0.8;
+    allData[atm.id] = times.map(t => {
+      const outcome = Math.floor(Math.random() * atm.capacity * 0.03);
+      bal = Math.max(0, bal - outcome);
+      if (bal < atm.capacity * 0.2) bal = atm.capacity * 0.85;
+      return { transactionTime: t, totalBalance: bal, atm_capacity: atm.capacity,
+               is_incassation: 0, low_cash_alert: bal < atm.capacity * 0.2 ? 1 : 0 };
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIMULATION TICK
+// ═══════════════════════════════════════════════════════════
+
+function tick() {
+  if (timeIndex >= timeSteps.length) { timeIndex = 0; }
+  const ts = timeSteps[timeIndex];
+
+  document.getElementById('sim-time').textContent =
+    new Date(ts).toLocaleString('ru-RU', {
+      day:'2-digit', month:'short', year:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+
+  let nCrit = 0, nWarn = 0, nOk = 0, nInc = 0;
+
+  ATM_META.forEach(atm => {
+    const rows = allData[atm.id] || [];
+    const row  = rows[Math.min(timeIndex, rows.length - 1)];
+    if (!row) return;
+
+    const pct = row.totalBalance / atm.capacity;
+    let status = 'ok';
+    if (pct < 0.2) { status = 'critical'; nCrit++; }
+    else if (pct < 0.4) { status = 'warning'; nWarn++; }
+    else { nOk++; }
+
+    if (row.is_incassation) nInc++;
+
+    const lastIncRow = rows.slice(0, timeIndex + 1).reverse().find(r => r.is_incassation);
+    const lastInc = lastIncRow
+      ? new Date(lastIncRow.transactionTime).toLocaleDateString('ru-RU')
+      : 'нет данных';
+
+    atmState[atm.id] = {
+      balance: row.totalBalance,
+      pct: pct,
+      status,
+      lastInc,
+      isIncNow: !!row.is_incassation,
+      capacity: atm.capacity,
+    };
+
+    // обновляем маркер
+    if (markers[atm.id]) markers[atm.id].setIcon(makeIcon(status));
+  });
+
+  document.getElementById('s-total').textContent    = ATM_META.length;
+  document.getElementById('s-critical').textContent = nCrit;
+  document.getElementById('s-warning').textContent  = nWarn;
+  document.getElementById('s-ok').textContent       = nOk;
+  document.getElementById('s-inc').textContent      = nInc;
+
+  // ML риски
+  const mlVals = Object.values(mlPredictions);
+  if (mlVals.length > 0) {
+    document.getElementById('s-ml-high').textContent = mlVals.filter(m => m.risk_label === 'HIGH').length;
+    document.getElementById('s-ml-med').textContent  = mlVals.filter(m => m.risk_label === 'MEDIUM').length;
+  }
+
+  renderList();
+  if (selectedId) updateChart(selectedId);
+
+  timeIndex++;
+}
+
+function startSimulation() {
+  initMarkers();
+  renderList();
+  tick();
+  simTimer = setInterval(tick, 1200);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER LIST
+// ═══════════════════════════════════════════════════════════
+
+function renderList() {
+  const container = document.getElementById('atm-list');
+  // sort: critical first, then warning, then ok
+  const order = { critical: 0, warning: 1, ok: 2 };
+  const sorted = [...ATM_META].sort((a,b) => {
+    const sa = atmState[a.id]?.status || 'ok';
+    const sb = atmState[b.id]?.status || 'ok';
+    return (order[sa]||0) - (order[sb]||0);
+  });
+
+  container.innerHTML = '';
+  sorted.forEach(atm => {
+    const st = atmState[atm.id] || { balance: 0, pct: 0, status: 'ok', lastInc: '—' };
+    const pctDisp = Math.round(st.pct * 100);
+    const balDisp = (st.balance / 1_000_000).toFixed(1);
+    const capDisp = (atm.capacity / 1_000_000).toFixed(0);
+
+    const ml  = mlPredictions[atm.id] || {};
+    const mlBal  = ml.pred_balance_24h  ? (ml.pred_balance_24h  / 1_000_000).toFixed(1) : null;
+    const mlPct  = ml.pred_balance_pct_24h ?? null;
+    const mlProb = ml.pred_cashout_prob ? (ml.pred_cashout_prob * 100).toFixed(0) : null;
+    const mlRisk = ml.risk_label || null;
+    const mlRiskColor = mlRisk ? getRiskColor(mlRisk) : '#64748b';
+    const mlRiskIcon  = mlRisk ? getRiskIcon(mlRisk)  : '';
+
+    const card = document.createElement('div');
+    card.className = `atm-card ${st.status} ${selectedId === atm.id ? 'selected' : ''}`;
+    card.innerHTML = `
+      <div class="atm-card-top">
+        <div>
+          <div class="atm-card-name">${atm.name}</div>
+          <div class="atm-card-bank">${atm.bank}</div>
+        </div>
+        <div class="status-dot dot-${st.status}"></div>
+      </div>
+      <div class="atm-card-bar-wrap">
+        <div class="bar-labels">
+          <span>Сейчас</span>
+          <span class="val">${balDisp} / ${capDisp} млн (${pctDisp}%)</span>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill fill-${st.status}" style="width:${pctDisp}%"></div>
+        </div>
+      </div>
+      ${mlBal ? `
+      <div class="atm-card-bar-wrap" style="margin-top:6px">
+        <div class="bar-labels">
+          <span style="color:#818cf8">🤖 Прогноз +24ч</span>
+          <span class="val" style="color:#818cf8">${mlBal} млн (${mlPct}%)</span>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill" style="width:${Math.min(mlPct,100)}%;background:linear-gradient(90deg,#6366f1,#818cf8)"></div>
+        </div>
+      </div>
+      <div style="margin-top:5px;display:flex;align-items:center;justify-content:space-between;font-size:11px">
+        <span style="color:#64748b">Риск cash-out:</span>
+        <span style="color:${mlRiskColor};font-weight:700">${mlRiskIcon} ${mlRisk} · ${mlProb}%</span>
+      </div>` : ''}
+      <div class="atm-card-footer" style="margin-top:6px">
+        <span>${pctDisp}% заполнен</span>
+        ${st.isIncNow ? '<span class="highlight">&#x21BB; Инкассация сейчас</span>' : '<span>Посл. инк.: ' + st.lastInc + '</span>'}
+      </div>
+    `;
+    card.onclick = () => selectAtm(atm.id);
+    container.appendChild(card);
+  });
+
+  document.getElementById('list-count').textContent = ATM_META.length + ' ATM';
+}
+
+// ═══════════════════════════════════════════════════════════
+// SELECT ATM
+// ═══════════════════════════════════════════════════════════
+
+function selectAtm(id) {
+  selectedId = id;
+  const atm = ATM_META.find(a => a.id === id);
+  const st  = atmState[id] || {};
+  const pct = Math.round((st.pct || 0) * 100);
+
+  map.setView([atm.lat, atm.lon], 16, { animate: true });
+
+  const ml2  = mlPredictions[id] || {};
+  const mlB2 = ml2.pred_balance_24h ? (ml2.pred_balance_24h / 1_000_000).toFixed(1) : '—';
+  const mlP2 = ml2.pred_balance_pct_24h ?? '—';
+  const mlR2 = ml2.risk_label || '—';
+  const mlPr2 = ml2.pred_cashout_prob ? (ml2.pred_cashout_prob * 100).toFixed(0) + '%' : '—';
+  const mlRC2 = getRiskColor(mlR2);
+
+  markers[id].bindPopup(`
+    <div class="popup-title">${atm.name}</div>
+    <div class="popup-row">Банк: <span>${atm.bank}</span></div>
+    <div class="popup-row">Адрес: <span>${atm.address}</span></div>
+    <hr style="border-color:#2d3148;margin:6px 0">
+    <div class="popup-row">Остаток сейчас: <span>${((st.balance||0)/1_000_000).toFixed(1)} млн сум (${pct}%)</span></div>
+    <div class="popup-row">Статус: <span style="color:${
+      st.status==='ok'?'#4ade80':st.status==='warning'?'#fbbf24':'#f87171'
+    }">${st.status==='ok'?'Норма':st.status==='warning'?'Предупреждение':'Критично'}</span></div>
+    <hr style="border-color:#2d3148;margin:6px 0">
+    <div style="font-size:11px;color:#818cf8;font-weight:700;margin-bottom:4px">🤖 ML Прогноз +24 часа</div>
+    <div class="popup-row">Прогноз баланса: <span style="color:#818cf8">${mlB2} млн (${mlP2}%)</span></div>
+    <div class="popup-row">Риск cash-out: <span style="color:${mlRC2};font-weight:700">${getRiskIcon(mlR2)} ${mlR2} · ${mlPr2}</span></div>
+    <div class="popup-row">Посл. инкассация: <span>${st.lastInc}</span></div>
+  `).openPopup();
+
+  renderList();
+  updateChart(id);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHART
+// ═══════════════════════════════════════════════════════════
+
+function updateChart(id) {
+  const atm  = ATM_META.find(a => a.id === id);
+  const rows = allData[id] || [];
+  const slice = rows.slice(Math.max(0, timeIndex - 48), timeIndex);
+
+  const labels  = slice.map(r => {
+    const d = new Date(r.transactionTime);
+    return `${d.getDate()}/${d.getMonth()+1} ${String(d.getHours()).padStart(2,'0')}:00`;
+  });
+  const balances = slice.map(r => +(r.totalBalance / 1_000_000).toFixed(2));
+  const incPoints = slice.map(r => r.is_incassation ? +(r.totalBalance / 1_000_000).toFixed(2) : null);
+  const threshold20 = atm.capacity * 0.20 / 1_000_000;
+  const threshold40 = atm.capacity * 0.40 / 1_000_000;
+
+  document.getElementById('chart-title').textContent =
+    `Остаток наличных — ${atm.name} (последние 48 шагов)`;
+
+  const ctx = document.getElementById('balance-chart').getContext('2d');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Баланс (млн сум)',
+          data: balances,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.08)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'Инкассация',
+          data: incPoints,
+          borderColor: 'transparent',
+          backgroundColor: '#22c55e',
+          pointRadius: 6,
+          pointStyle: 'triangle',
+          showLine: false,
+        },
+        {
+          label: '20% (критично)',
+          data: Array(labels.length).fill(threshold20),
+          borderColor: '#ef4444',
+          borderDash: [4,4],
+          borderWidth: 1,
+          pointRadius: 0,
+        },
+        {
+          label: '40% (предупреждение)',
+          data: Array(labels.length).fill(threshold40),
+          borderColor: '#f59e0b',
+          borderDash: [4,4],
+          borderWidth: 1,
+          pointRadius: 0,
+        },
+      ]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12 } },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 10 },
+          grid:  { color: '#2d3148' }
+        },
+        y: {
+          ticks: { color: '#64748b', font: { size: 10 } },
+          grid:  { color: '#2d3148' },
+          title: { display: true, text: 'млн сум', color: '#64748b', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// ROUTING
+// ═══════════════════════════════════════════════════════════
+
+// Депо инкассаторов — центральный офис в Юнусабаде
+const DEPOT = { lat: 41.3510, lon: 69.2830, name: 'Депо (Amir Temur 107)' };
+
+// Цвета для разных машин
+const CAR_COLORS  = ['#f59e0b', '#3b82f6', '#a855f7', '#10b981'];
+const CAR_LABELS  = ['Машина A', 'Машина B', 'Машина C', 'Машина D'];
+
+let routeControls = [];   // Leaflet Routing Machine контролы (локальный режим)
+let routingLayers = [];   // обычные полилинии (WebSocket-режим)
+let depotMarker   = null;
+
+async function buildRoute(filterStatus) {
+  clearRoute();
+
+  const numCars  = parseInt(document.getElementById('num-cars').value)  || 2;
+  const speedKmh = parseInt(document.getElementById('speed-kmh').value) || 30;
+
+  // ── Если WebSocket активен — делегируем серверу ──────────
+  if (wsMode && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      action: 'route',
+      filter_status: filterStatus,
+      num_cars:      numCars,
+      speed_kmh:     speedKmh,
+    }));
+    return;   // результат придёт в handleServerMessage(msg.type === 'route')
+  }
+
+  // ── Fallback: локальный расчёт ───────────────────────────
+  const targets = ATM_META.filter(atm => {
+    const st = atmState[atm.id]?.status;
+    if (filterStatus === 'critical') return st === 'critical';
+    if (filterStatus === 'warning')  return st === 'critical' || st === 'warning';
+    return true;
+  });
+
+  if (targets.length === 0) {
+    alert('Нет банкоматов с выбранным статусом.');
+    return;
+  }
+
+  // Сортируем: сначала критичные (по возрастанию остатка)
+  const sorted = [...targets].sort((a, b) => {
+    const pa = atmState[a.id]?.pct ?? 1;
+    const pb = atmState[b.id]?.pct ?? 1;
+    return pa - pb;
+  });
+
+  // Разбиваем на группы для машин (round-robin по приоритету)
+  const groups = Array.from({ length: numCars }, () => []);
+  sorted.forEach((atm, i) => groups[i % numCars].push(atm));
+
+  // Для каждой группы — жадный маршрут от депо
+  let totalStops = 0;
+  let totalDistKm = 0;
+  const carRoutes = [];
+
+  groups.forEach((group, gi) => {
+    if (group.length === 0) return;
+    const ordered = greedyRouteFromDepot(group);
+    carRoutes.push({ ordered, color: CAR_COLORS[gi], label: CAR_LABELS[gi] });
+    totalStops += ordered.length;
+
+    // считаем приблизительное расстояние (прямые линии × 1.35 поправка на дороги)
+    let pts = [DEPOT, ...ordered, DEPOT];
+    for (let k = 0; k < pts.length - 1; k++) {
+      totalDistKm += haversineKm(pts[k].lat, pts[k].lon, pts[k+1].lat, pts[k+1].lon);
+    }
+  });
+
+  totalDistKm *= 1.35;
+  const totalTimeMin = Math.round(totalDistKm / speedKmh * 60);
+
+  // Рисуем маркер депо
+  depotMarker = L.marker([DEPOT.lat, DEPOT.lon], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div style="
+        width:36px;height:36px;border-radius:8px;
+        background:#1e3a5f;border:2px solid #3b82f6;
+        display:flex;align-items:center;justify-content:center;
+        font-size:18px;box-shadow:0 0 12px #3b82f699;
+      ">🏢</div>`,
+      iconSize:[36,36], iconAnchor:[18,18]
+    })
+  }).addTo(map).bindPopup(`<b>Депо инкассаторов</b><br>${DEPOT.name}`);
+
+  // Рисуем маршруты
+  carRoutes.forEach(({ ordered, color, label }, gi) => {
+    const waypoints = [
+      L.latLng(DEPOT.lat, DEPOT.lon),
+      ...ordered.map(a => L.latLng(a.lat, a.lon)),
+      L.latLng(DEPOT.lat, DEPOT.lon),
+    ];
+
+    const rc = L.Routing.control({
+      waypoints,
+      routeWhileDragging: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: gi === 0,
+      show: false,
+      lineOptions: {
+        styles: [{ color, weight: gi === 0 ? 4 : 3, opacity: 0.85 }]
+      },
+      createMarker: (i, wp) => {
+        // депо — первая и последняя точка
+        if (i === 0 || i === waypoints.length - 1) return null;
+        const atmIdx = i - 1;
+        const atm = ordered[atmIdx];
+        const st  = atmState[atm.id] || {};
+        const pct = Math.round((st.pct || 0) * 100);
+        return L.marker(wp.latLng, {
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="
+              width:30px;height:30px;border-radius:50%;
+              background:${color};border:2px solid #fff;
+              display:flex;align-items:center;justify-content:center;
+              font-size:12px;font-weight:800;color:#fff;
+              box-shadow:0 0 8px ${color}99;
+            ">${atmIdx + 1}</div>`,
+            iconSize:[30,30], iconAnchor:[15,15]
+          })
+        }).bindPopup(`
+          <div class="popup-title">${gi+1}${String.fromCharCode(64+atmIdx+1)}. ${atm.name}</div>
+          <div class="popup-row">Банк: <span>${atm.bank}</span></div>
+          <div class="popup-row">Остаток: <span>${((st.balance||0)/1e6).toFixed(1)} млн сум (${pct}%)</span></div>
+          <div class="popup-row">Статус: <span style="color:${st.status==='critical'?'#f87171':st.status==='warning'?'#fbbf24':'#4ade80'}">${
+            st.status==='critical'?'Критично':st.status==='warning'?'Предупреждение':'Норма'
+          }</span></div>
+          <div class="popup-row">Маршрут: <span>${label}</span></div>
+        `);
+      }
+    }).addTo(map);
+
+    routeControls.push(rc);
+  });
+
+  // Обновляем sidebar
+  renderRouteSidebar(carRoutes, totalStops, totalDistKm, totalTimeMin);
+  document.getElementById('route-sidebar').classList.add('open');
+}
+
+function greedyRouteFromDepot(atms) {
+  if (atms.length === 0) return [];
+  const visited = new Set();
+  const result  = [];
+  let   current = DEPOT;
+
+  while (result.length < atms.length) {
+    let nearest = null, minDist = Infinity;
+    atms.forEach(a => {
+      if (visited.has(a.id)) return;
+      // приоритет: критичные ближе, warning — средне, ok — дальше
+      const priority = atmState[a.id]?.status === 'critical' ? 0.6
+                     : atmState[a.id]?.status === 'warning'  ? 0.8 : 1.0;
+      const d = haversineKm(current.lat, current.lon, a.lat, a.lon) * priority;
+      if (d < minDist) { minDist = d; nearest = a; }
+    });
+    if (!nearest) break;
+    result.push(nearest);
+    visited.add(nearest.id);
+    current = nearest;
+  }
+  return result;
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2
+          + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function renderRouteSidebar(carRoutes, totalStops, totalDistKm, totalTimeMin) {
+  document.getElementById('rs-cars-count').textContent  = carRoutes.length;
+  document.getElementById('rs-stops-count').textContent = totalStops;
+  document.getElementById('rs-distance').textContent    = totalDistKm.toFixed(1) + ' км';
+  document.getElementById('rs-time').textContent        = totalTimeMin + ' мин';
+
+  const container = document.getElementById('rs-cars-list');
+  container.innerHTML = '';
+
+  carRoutes.forEach(({ ordered, color, label }, gi) => {
+    const div = document.createElement('div');
+    div.className = 'rs-car';
+
+    const distCar = (() => {
+      let d = 0, pts = [DEPOT, ...ordered, DEPOT];
+      for (let k = 0; k < pts.length-1; k++)
+        d += haversineKm(pts[k].lat, pts[k].lon, pts[k+1].lat, pts[k+1].lon);
+      return (d * 1.35).toFixed(1);
+    })();
+
+    div.innerHTML = `
+      <div class="rs-car-header" style="background:${color}22;border:1px solid ${color}44;border-bottom:none;">
+        <div class="rs-car-dot" style="background:${color}"></div>
+        <span style="color:${color}">${label}</span>
+        <span style="margin-left:auto;color:#64748b;font-weight:400">${ordered.length} остановок · ${distCar} км</span>
+      </div>
+      <div class="rs-stops">
+        <div class="rs-depot">
+          <span class="rs-depot-icon">🏢</span>
+          <span>Старт: ${DEPOT.name}</span>
+        </div>
+        ${ordered.map((atm, si) => {
+          const st = atmState[atm.id] || {};
+          const pct = Math.round((st.pct||0)*100);
+          const balCls = st.status==='critical'?'bal-crit':st.status==='warning'?'bal-warn':'bal-ok';
+          const balStr = ((st.balance||0)/1e6).toFixed(1) + ' млн';
+          return `
+            <div class="rs-stop" onclick="selectAtm('${atm.id}')" style="cursor:pointer">
+              <div class="rs-stop-num" style="background:${color}">${si+1}</div>
+              <div class="rs-stop-name">${atm.name}<br><span style="color:#64748b">${atm.bank}</span></div>
+              <div class="rs-stop-bal ${balCls}">${balStr}<br><span style="font-weight:400;color:#64748b">${pct}%</span></div>
+            </div>`;
+        }).join('')}
+        <div class="rs-depot">
+          <span class="rs-depot-icon">🏁</span>
+          <span>Возврат в депо</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function closeSidebar() {
+  document.getElementById('route-sidebar').classList.remove('open');
+}
+
+function clearRoute() {
+  routeControls.forEach(rc => map.removeControl(rc));
+  routeControls = [];
+  routingLayers.forEach(l => map.removeLayer(l));
+  routingLayers = [];
+  if (depotMarker) { map.removeLayer(depotMarker); depotMarker = null; }
+  document.getElementById('route-sidebar').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ML PREDICTIONS
+// ═══════════════════════════════════════════════════════════
+
+// loadPredictions() теперь интегрирована в WebSocket snapshot
+
+function getRiskColor(label) {
+  if (label === 'HIGH')   return '#ef4444';
+  if (label === 'MEDIUM') return '#f59e0b';
+  return '#22c55e';
+}
+
+function getRiskIcon(label) {
+  if (label === 'HIGH')   return '🔴';
+  if (label === 'MEDIUM') return '🟡';
+  return '🟢';
+}
+
+// Рендер маршрута полученного по WebSocket (данные от FastAPI)
+function renderWSRoute(routeData) {
+  if (!routeData || !routeData.cars) return;
+
+  // Очищаем старые слои
+  routingLayers.forEach(l => map.removeLayer(l));
+  routingLayers = [];
+  if (depotMarker) { map.removeLayer(depotMarker); depotMarker = null; }
+
+  // Маркер депо
+  depotMarker = L.marker([DEPOT.lat, DEPOT.lon], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div style="
+        width:38px;height:38px;border-radius:10px;
+        background:#0f172a;border:2px solid #3b82f6;
+        display:flex;align-items:center;justify-content:center;
+        font-size:20px;box-shadow:0 0 14px #3b82f6aa;
+      ">🏢</div>`,
+      iconSize: [38,38], iconAnchor: [19,19]
+    })
+  }).addTo(map).bindPopup(`<b>Депо инкассаторов</b><br>${DEPOT.name}`);
+  routingLayers.push(depotMarker);
+
+  // Рисуем маршруты
+  const allPts = [];
+  routeData.cars.forEach((car, gi) => {
+    const pts = [
+      L.latLng(DEPOT.lat, DEPOT.lon),
+      ...car.stops.map(s => L.latLng(s.lat, s.lon)),
+      L.latLng(DEPOT.lat, DEPOT.lon),
+    ];
+    allPts.push(...pts);
+
+    // Тень линии (чуть толще, тёмная) для глубины
+    const shadow = L.polyline(pts, {
+      color: '#000', weight: 8, opacity: 0.18, lineJoin: 'round', lineCap: 'round'
+    }).addTo(map);
+    routingLayers.push(shadow);
+
+    // Основная линия
+    const poly = L.polyline(pts, {
+      color: car.color,
+      weight: 5,
+      opacity: 0.92,
+      lineJoin: 'round',
+      lineCap: 'round',
+    }).addTo(map);
+    routingLayers.push(poly);
+
+    // Пунктирная обводка поверх — эффект "движения"
+    const dash = L.polyline(pts, {
+      color: '#ffffff',
+      weight: 1.5,
+      opacity: 0.35,
+      dashArray: '6 10',
+      lineJoin: 'round',
+    }).addTo(map);
+    routingLayers.push(dash);
+
+    // Маркеры остановок
+    car.stops.forEach((stop, si) => {
+      const pct   = stop.balance_pct;
+      const color = stop.status === 'critical' ? '#ef4444'
+                  : stop.status === 'warning'  ? '#f59e0b' : '#22c55e';
+
+      const stopMarker = L.marker([stop.lat, stop.lon], {
+        icon: L.divIcon({
+          className: '',
+          html: `
+            <div style="
+              width:32px;height:32px;border-radius:50%;
+              background:${car.color};border:3px solid #fff;
+              display:flex;align-items:center;justify-content:center;
+              font-size:12px;font-weight:800;color:#fff;
+              box-shadow:0 0 10px ${car.color}cc, 0 2px 6px #0008;
+            ">${si+1}</div>
+            <div style="
+              position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+              width:8px;height:8px;border-radius:50%;
+              background:${color};border:2px solid #fff;
+              box-shadow:0 0 6px ${color};
+            "></div>`,
+          iconSize: [32,32], iconAnchor: [16,16]
+        })
+      }).addTo(map).bindPopup(`
+        <div class="popup-title">${gi+1}${String.fromCharCode(64+si+1)}. ${stop.name}</div>
+        <div class="popup-row">Банк: <span>${stop.bank}</span></div>
+        <div class="popup-row">Остаток: <span>${(stop.balance/1e6).toFixed(1)} млн · ${pct.toFixed(0)}%</span></div>
+        <div class="popup-row">Статус: <span style="color:${color}">${
+          stop.status==='critical'?'Критично':stop.status==='warning'?'Предупреждение':'Норма'
+        }</span></div>
+        ${stop.cashout_prob!=null ? `<div class="popup-row">ML риск: <span>${(stop.cashout_prob*100).toFixed(0)}%</span></div>` : ''}
+        <div class="popup-row">Маршрут: <span>${car.label}</span></div>
+      `);
+      routingLayers.push(stopMarker);
+    });
+  });
+
+  // Подгоняем карту под маршруты
+  if (allPts.length > 0) map.fitBounds(L.latLngBounds(allPts), { padding: [40, 40] });
+
+  // ── Sidebar ──────────────────────────────────────────────
+  const sb = document.getElementById('route-sidebar');
+  if (!sb) return;
+  sb.classList.add('open');
+
+  document.getElementById('rs-cars-count').textContent  = routeData.cars.length;
+  document.getElementById('rs-stops-count').textContent = routeData.total_stops;
+  document.getElementById('rs-distance').textContent    = routeData.total_dist_km.toFixed(1) + ' км';
+  document.getElementById('rs-time').textContent        = routeData.est_time_min + ' мин';
+
+  const container = document.getElementById('rs-cars-list');
+  container.innerHTML = routeData.cars.map(car => {
+    const stops = car.stops.map((s, si) => {
+      const pct    = s.balance_pct.toFixed(0);
+      const balStr = (s.balance / 1e6).toFixed(1) + ' млн';
+      const balCls = s.status === 'critical' ? 'bal-crit'
+                   : s.status === 'warning'  ? 'bal-warn' : 'bal-ok';
+      const prob   = s.cashout_prob != null
+                   ? `<span style="color:#a78bfa;font-size:10px;"> · P=${(s.cashout_prob*100).toFixed(0)}%</span>` : '';
+      return `
+        <div class="rs-stop" onclick="selectAtm('${s.atm_id}')" style="cursor:pointer">
+          <div class="rs-stop-num" style="background:${car.color}">${si+1}</div>
+          <div class="rs-stop-name">
+            ${s.name}<br>
+            <span style="color:#64748b;font-size:10px">${s.bank}</span>
+          </div>
+          <div class="rs-stop-bal ${balCls}">${balStr}<br>
+            <span style="font-weight:400;color:#64748b">${pct}%${prob}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="rs-car">
+        <div class="rs-car-header" style="background:${car.color}22;border:1px solid ${car.color}55;border-bottom:none;">
+          <div class="rs-car-dot" style="background:${car.color}"></div>
+          <span style="color:${car.color};font-weight:700">${car.label}</span>
+          <span style="margin-left:auto;color:#94a3b8;font-size:11px">
+            ${car.stops.length} ост. · ${car.total_dist_km.toFixed(1)} км · ${car.est_time_min} мин
+          </span>
+        </div>
+        <div class="rs-stops">${stops}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderWSHistory(atmId, records) {
+  if (atmId !== selectedId) return;
+  const labels = records.map(r => r.transactionTime.slice(5, 16));
+  const vals   = records.map(r => r.totalBalance);
+  if (atmChart) {
+    atmChart.data.labels = labels;
+    atmChart.data.datasets[0].data = vals;
+    atmChart.update('none');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOOT — пробуем WebSocket, fallback на JSON-файлы
+// ═══════════════════════════════════════════════════════════
+connectWebSocket();
+</script>
+</body>
+</html>
