@@ -31,3 +31,11 @@ HORIZON_HOURS     = 24
 DEPOT = {"lat": 41.3510, "lon": 69.2830, "name": "Депо (Amir Temur 107)"}
 ROAD_FACTOR = 1.35          # поправка прямое расстояние → дорога
 AVG_SPEED_KMH = 30
+
+# ── Дорожные маршруты ───────────────────────────────────────
+# OSRM — open-source routing engine на базе OpenStreetMap.
+# Для демо используется публичный сервер. Для продакшена можно заменить
+# на self-hosted OSRM без изменения остального кода.
+ROUTING_PROVIDER = "osrm"
+OSRM_BASE_URL = "https://router.project-osrm.org"
+ROUTING_TIMEOUT_SECS = 8.0

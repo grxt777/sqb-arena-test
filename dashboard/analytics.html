@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATM Intelligence — Analytics</title>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --border: #e5eaf3;
+      --text: #111827;
+      --muted: #667085;
+      --primary: #2563eb;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --purple: #7c3aed;
+      --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+      --shadow-md: 0 12px 28px rgba(16, 24, 40, .08);
+      --shadow-lg: 0 24px 60px rgba(15, 23, 42, .12);
+    }
+    body {
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, .12), transparent 28%),
+        linear-gradient(180deg, #fbfdff 0%, var(--bg) 48%, #eef3fb 100%);
+    }
+    header {
+      height: 58px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255,255,255,.88);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow-sm);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    h1 {
+      font-size: 19px;
+      font-weight: 850;
+      letter-spacing: -.03em;
+    }
+    .badge {
+      background: linear-gradient(135deg, var(--primary), #60a5fa);
+      color: #fff;
+      border-radius: 999px;
+      padding: 4px 11px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .spacer { flex: 1; }
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: var(--shadow-sm);
+    }
+    .nav-link:hover { color: var(--primary); border-color: #bfdbfe; }
+    .page {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 22px auto 34px;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: end;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      background: rgba(255,255,255,.92);
+      box-shadow: var(--shadow-lg);
+    }
+    .eyebrow {
+      color: var(--primary);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+    }
+    .hero-title {
+      margin-top: 5px;
+      font-size: 34px;
+      line-height: 1.05;
+      font-weight: 900;
+      letter-spacing: -.055em;
+    }
+    .hero-subtitle {
+      margin-top: 10px;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .period-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 5px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      box-shadow: var(--shadow-sm);
+    }
+    .period-tab {
+      border: none;
+      background: transparent;
+      padding: 10px 13px;
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    .period-tab.active {
+      color: #fff;
+      background: var(--primary);
+      box-shadow: 0 12px 24px rgba(37,99,235,.22);
+    }
+    .section-tabs {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      padding: 6px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255,255,255,.84);
+      box-shadow: var(--shadow-sm);
+    }
+    .section-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 10px 13px;
+      border-radius: 13px;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    .section-tab.active {
+      color: #fff;
+      background: var(--primary);
+      box-shadow: 0 12px 24px rgba(37,99,235,.20);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .kpi {
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: #fff;
+      padding: 16px;
+      box-shadow: var(--shadow-md);
+    }
+    .kpi-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      background: #eff6ff;
+      color: var(--primary);
+    }
+    .kpi.warning .kpi-icon { background: #fffbeb; color: var(--warning); }
+    .kpi.danger .kpi-icon { background: #fef2f2; color: var(--danger); }
+    .kpi.success .kpi-icon { background: #ecfdf5; color: var(--success); }
+    .kpi-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+    }
+    .kpi-value {
+      margin-top: 7px;
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: -.055em;
+    }
+    .kpi-hint {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: rgba(255,255,255,.94);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-head h2 {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      padding: 13px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      align-items: center;
+    }
+    .row:last-child { border-bottom: none; }
+    .row-title {
+      font-size: 13px;
+      font-weight: 850;
+      color: var(--text);
+    }
+    .row-meta {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .chip {
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #eff6ff;
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .chip.danger { background: #fef2f2; color: var(--danger); }
+    .chip.warning { background: #fffbeb; color: var(--warning); }
+    .explain-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .explain-card {
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: #fff;
+      padding: 15px;
+      box-shadow: var(--shadow-md);
+    }
+    .explain-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .explain-card p {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+    .tx-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+    .tx-table th,
+    .tx-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      text-align: left;
+      font-size: 12px;
+      vertical-align: top;
+    }
+    .tx-table th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      background: #fbfdff;
+    }
+    .tx-table td strong {
+      color: var(--text);
+      font-weight: 850;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 850;
+      background: #eff6ff;
+      color: var(--primary);
+      white-space: nowrap;
+    }
+    .status-pill.warning { background: #fffbeb; color: var(--warning); }
+    .status-pill.danger { background: #fef2f2; color: var(--danger); }
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+      background: #fbfdff;
+    }
+    .pager-btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+    }
+    .pager-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+    .pager-info {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .empty {
+      padding: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .icon-inline {
+      width: 16px;
+      height: 16px;
+      stroke-width: 2.4;
+    }
+    @media (max-width: 980px) {
+      .hero, .content-grid { grid-template-columns: 1fr; }
+      .kpis, .explain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      header { padding: 0 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ATM Intelligence</h1>
+    <span class="badge">Analytics</span>
+    <div class="spacer"></div>
+    <a class="nav-link" href="/dashboard/index.html"><i data-lucide="map" class="icon-inline"></i> Карта</a>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">ATM Demand Intelligence</div>
+        <div class="hero-title">Операционная аналитика сети</div>
+        <p class="hero-subtitle">Спрос, cash-out риск, инкассации и денежный поток по выбранному периоду. Эта страница отделена от карты, чтобы основной дашборд оставался большим и удобным для маршрутов.</p>
+      </div>
+      <div class="period-tabs">
+        <button class="period-tab" data-period="12h" onclick="setAnalyticsPeriod('12h')">12ч</button>
+        <button class="period-tab active" data-period="24h" onclick="setAnalyticsPeriod('24h')">24ч</button>
+        <button class="period-tab" data-period="7d" onclick="setAnalyticsPeriod('7d')">7 дней</button>
+        <button class="period-tab" data-period="30d" onclick="setAnalyticsPeriod('30d')">1 месяц</button>
+      </div>
+    </section>
+
+    <nav class="section-tabs">
+      <button class="section-tab active" data-tab="overview" onclick="switchAnalyticsTab('overview')"><i data-lucide="layout-dashboard" class="icon-inline"></i> Операционная аналитика</button>
+      <button class="section-tab" data-tab="history" onclick="switchAnalyticsTab('history')"><i data-lucide="list-checks" class="icon-inline"></i> История транзакций</button>
+      <button class="section-tab" data-tab="insights" onclick="switchAnalyticsTab('insights')"><i data-lucide="brain-circuit" class="icon-inline"></i> AI-инсайты</button>
+    </nav>
+
+    <section id="tab-overview" class="tab-panel active">
+      <section class="kpis">
+        <article class="kpi">
+          <div class="kpi-icon"><i data-lucide="banknote"></i></div>
+          <div class="kpi-label">Снято наличных</div>
+          <div class="kpi-value" id="a-outcome">—</div>
+          <div class="kpi-hint" id="a-period-label">за 24 часа</div>
+        </article>
+        <article class="kpi success">
+          <div class="kpi-icon"><i data-lucide="gauge"></i></div>
+          <div class="kpi-label">Средний остаток</div>
+          <div class="kpi-value" id="a-avg-balance">—</div>
+          <div class="kpi-hint">по всем ATM</div>
+        </article>
+        <article class="kpi danger">
+        <div class="kpi-icon"><i data-lucide="shield-check"></i></div>
+        <div class="kpi-label">Предотвращено cash-out</div>
+        <div class="kpi-value" id="a-prevented-cashout">—</div>
+        <div class="kpi-hint">инкассации после low-cash риска</div>
+        </article>
+        <article class="kpi warning">
+          <div class="kpi-icon"><i data-lucide="truck"></i></div>
+          <div class="kpi-label">Инкассации</div>
+          <div class="kpi-value" id="a-incassations">—</div>
+          <div class="kpi-hint">фактические визиты</div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <div class="panel">
+          <div class="panel-head"><i data-lucide="trending-up" class="icon-inline"></i><h2>Топ спроса</h2></div>
+          <div id="a-top-demand"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><i data-lucide="shield-alert" class="icon-inline"></i><h2>Топ риска</h2></div>
+          <div id="a-top-risk"></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="tab-history" class="tab-panel">
+      <section class="explain-grid">
+        <article class="explain-card">
+          <h3><i data-lucide="database" class="icon-inline"></i> Что это</h3>
+          <p>История транзакций ATM — временной журнал операций: снятия, инкассации, проверки баланса, low-cash события и технические ошибки.</p>
+        </article>
+        <article class="explain-card">
+          <h3><i data-lucide="banknote" class="icon-inline"></i> Наличность</h3>
+          <p>Каждая операция меняет остаток в кассетах. Эти данные становятся основой для прогноза спроса и риска cash-out.</p>
+        </article>
+        <article class="explain-card">
+          <h3><i data-lucide="route" class="icon-inline"></i> Маршруты</h3>
+          <p>Если ATM стабилен и заполнен, его можно пропустить. Если спрос растёт, система повышает приоритет для инкассации.</p>
+        </article>
+        <article class="explain-card">
+          <h3><i data-lucide="scan-search" class="icon-inline"></i> Аномалии</h3>
+          <p>Серия крупных снятий, low-cash события или ошибки помогают заранее обнаружить fraud, сбой или износ устройства.</p>
+        </article>
+      </section>
+
+      <section class="panel" style="margin-top:16px">
+        <div class="panel-head"><i data-lucide="list-checks" class="icon-inline"></i><h2>Журнал транзакций ATM</h2></div>
+        <div class="table-wrap">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th>Время</th>
+                <th>ATM</th>
+                <th>Тип операции</th>
+                <th>Сумма</th>
+                <th>Остаток</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody id="tx-history-body">
+              <tr><td colspan="6">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button class="pager-btn" id="tx-prev" onclick="changeTxPage(-1)">Назад</button>
+          <div class="pager-info" id="tx-page-info">Страница —</div>
+          <button class="pager-btn" id="tx-next" onclick="changeTxPage(1)">Вперёд</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="tab-insights" class="tab-panel">
+      <section class="explain-grid">
+        <article class="explain-card">
+          <h3><i data-lucide="brain-circuit" class="icon-inline"></i> Прогноз спроса</h3>
+          <p>Исторические операции подаются в ML-модель, чтобы находить паттерны снятий: зарплатные дни, праздники, часы пик и сезонность.</p>
+        </article>
+        <article class="explain-card">
+          <h3><i data-lucide="truck" class="icon-inline"></i> Динамическая инкассация</h3>
+          <p>Вместо фиксированного графика маршрут строится по приоритету: остаток, ML-риск, кассеты и ожидаемое время до cash-out.</p>
+        </article>
+        <article class="explain-card">
+          <h3><i data-lucide="shield-alert" class="icon-inline"></i> Fraud и аномалии</h3>
+          <p>Необычные ночные снятия, резкий спад баланса или повторяющиеся ошибки можно подсветить как подозрительное поведение.</p>
+        </article>
+        <article class="explain-card">
+          <h3><i data-lucide="wrench" class="icon-inline"></i> Предиктивный сервис</h3>
+          <p>Если в логах растёт число ошибок, банк может отправить техника заранее и снизить простой ATM.</p>
+        </article>
+      </section>
+      <section class="panel" style="margin-top:16px">
+        <div class="panel-head"><i data-lucide="quote" class="icon-inline"></i><h2>Формулировка для README</h2></div>
+        <div class="row">
+          <div>
+            <div class="row-title">Из сырых операций в управленческие решения</div>
+            <div class="row-meta">Используя историю транзакций банкоматов, решение превращает операционные данные в инсайты: прогнозируемое пополнение наличности, снижение cash-out и оптимизацию маршрутов инкассации.</div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const API_BASE = `${location.protocol}//${location.hostname}:8000`;
+    let analyticsPeriod = '24h';
+    let txPage = 1;
+    let txTotalPages = 1;
+    const txPageSize = 12;
+
+    function hydrateIcons() {
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function formatMoneyMln(value) {
+      const mln = (value || 0) / 1_000_000;
+      if (mln >= 1000) return (mln / 1000).toFixed(1) + ' млрд';
+      return Math.round(mln).toLocaleString('ru-RU') + ' млн';
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+
+    function statusClass(status) {
+      if (status === 'Ошибка' || status === 'Low cash') return 'danger';
+      if (status === 'Пополнение') return 'warning';
+      return '';
+    }
+
+    function switchAnalyticsTab(tabName) {
+      document.querySelectorAll('.section-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+      });
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `tab-${tabName}`);
+      });
+      if (tabName === 'history') loadTransactionHistory(txPage);
+      hydrateIcons();
+    }
+
+    async function loadAnalytics(period = analyticsPeriod) {
+      analyticsPeriod = period;
+      document.querySelectorAll('.period-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.period === period);
+      });
+
+      try {
+        const data = await fetch(`${API_BASE}/api/analytics?period=${period}`).then(r => r.json());
+        const s = data.summary || {};
+        document.getElementById('a-outcome').textContent = formatMoneyMln(s.total_outcome);
+        document.getElementById('a-avg-balance').textContent = (s.avg_balance_pct ?? 0).toFixed(1) + '%';
+        document.getElementById('a-prevented-cashout').textContent = s.prevented_cashouts ?? 0;
+        document.getElementById('a-incassations').textContent = s.incassations ?? 0;
+        document.getElementById('a-period-label').textContent = `за ${data.label || period}`;
+
+        document.getElementById('a-top-demand').innerHTML = (data.top_demand || []).slice(0, 8).map(row => `
+          <div class="row">
+            <div>
+              <div class="row-title">${row.name}</div>
+              <div class="row-meta">Средний остаток ${row.avg_balance_pct}% · инкассаций ${row.incassations}</div>
+            </div>
+            <div class="chip">${formatMoneyMln(row.outcome)}</div>
+          </div>
+        `).join('') || '<div class="empty">Нет данных за период</div>';
+
+        document.getElementById('a-top-risk').innerHTML = (data.top_risk || []).slice(0, 8).map(row => {
+          const prob = Math.round((row.cashout_prob || 0) * 100);
+          const cls = row.risk_label === 'HIGH' ? 'danger' : row.risk_label === 'MEDIUM' ? 'warning' : '';
+          return `
+            <div class="row">
+              <div>
+                <div class="row-title">${row.name}</div>
+                <div class="row-meta">Остаток ${Number(row.balance_pct || 0).toFixed(1)}% · ML ${row.risk_label}</div>
+              </div>
+              <div class="chip ${cls}">${prob}%</div>
+            </div>
+          `;
+        }).join('') || '<div class="empty">Нет данных за период</div>';
+      } catch (err) {
+        console.warn('Analytics unavailable:', err);
+      } finally {
+        hydrateIcons();
+      }
+    }
+
+    function setAnalyticsPeriod(period) {
+      loadAnalytics(period);
+    }
+
+    async function loadTransactionHistory(page = 1) {
+      try {
+        const data = await fetch(`${API_BASE}/api/transactions/history?page=${page}&page_size=${txPageSize}`).then(r => r.json());
+        txPage = data.page || 1;
+        txTotalPages = data.total_pages || 1;
+
+        document.getElementById('tx-history-body').innerHTML = (data.items || []).map(row => `
+          <tr>
+            <td>${formatDateTime(row.timestamp)}</td>
+            <td><strong>${row.atm_name}</strong><br><span style="color:var(--muted)">${row.atm_id}</span></td>
+            <td>${row.type}</td>
+            <td>${row.amount > 0 ? formatMoneyMln(row.amount) : '—'}</td>
+            <td><strong>${formatMoneyMln(row.balance)}</strong><br><span style="color:var(--muted)">${row.balance_pct}% заполнен</span></td>
+            <td><span class="status-pill ${statusClass(row.status)}">${row.status}</span></td>
+          </tr>
+        `).join('') || '<tr><td colspan="6">Нет данных</td></tr>';
+
+        document.getElementById('tx-page-info').textContent = `Страница ${txPage} из ${txTotalPages} · ${data.total || 0} записей`;
+        document.getElementById('tx-prev').disabled = txPage <= 1;
+        document.getElementById('tx-next').disabled = txPage >= txTotalPages;
+      } catch (err) {
+        console.warn('Transaction history unavailable:', err);
+        document.getElementById('tx-history-body').innerHTML = '<tr><td colspan="6">Ошибка загрузки истории</td></tr>';
+      }
+    }
+
+    function changeTxPage(delta) {
+      const nextPage = Math.min(Math.max(txPage + delta, 1), txTotalPages);
+      if (nextPage !== txPage) loadTransactionHistory(nextPage);
+    }
+
+    hydrateIcons();
+    loadAnalytics('24h');
+    loadTransactionHistory(1);
+  </script>
+</body>
+</html>

@@ -1,3 +1,7 @@
+import os, sys
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+if hasattr(sys.stdout, "reconfigure"): sys.stdout.reconfigure(encoding="utf-8")
+
 """
 ATM Cash-Out Prediction Pipeline
 =================================
@@ -28,6 +32,7 @@ Feature Engineering:
 
 import json
 import os
+import sys
 import warnings
 from pathlib import Path
 
@@ -46,9 +51,20 @@ import xgboost as xgb
 
 warnings.filterwarnings("ignore")
 
-# ─────────────────────────────────────────────────────────────
+# Подключаем единый модуль календаря
+sys.path.insert(0, str(Path(__file__).parent / "api"))
+try:
+    from core.calendar_uz import SALARY_DAYS, is_salary_day, is_near_salary
+    print("[OK] calendar_uz: SALARY_DAYS =", sorted(SALARY_DAYS))
+except ImportError:
+    SALARY_DAYS = frozenset({10, 25})
+    is_salary_day  = lambda d: d in SALARY_DAYS
+    is_near_salary = lambda d: any(abs(d - s) <= 2 for s in SALARY_DAYS)
+    print("[Fallback] SALARY_DAYS =", sorted(SALARY_DAYS))
+
+# -
 # КОНФИГУРАЦИЯ
-# ─────────────────────────────────────────────────────────────
+# -
 
 DATA_PATH   = Path("atm_transactions_enriched.csv")
 MODELS_DIR  = Path("models");      MODELS_DIR.mkdir(exist_ok=True)
@@ -86,9 +102,9 @@ XGB_CLF_PARAMS = {
 }
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 1. ЗАГРУЗКА И БАЗОВАЯ ОЧИСТКА
-# ─────────────────────────────────────────────────────────────
+# -
 
 def load_data() -> pd.DataFrame:
     print("Загружаем данные...")
@@ -99,13 +115,13 @@ def load_data() -> pd.DataFrame:
     df = df[df["is_breakdown"] == 0].copy()
 
     print(f"  Строк после фильтрации сбоев: {len(df):,}")
-    print(f"  ATM: {df['atmId'].nunique()} | Период: {df['transactionTime'].min().date()} → {df['transactionTime'].max().date()}")
+    print(f"  ATM: {df['atmId'].nunique()} | Период: {df['transactionTime'].min().date()} -> {df['transactionTime'].max().date()}")
     return df
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 2. FEATURE ENGINEERING
-# ─────────────────────────────────────────────────────────────
+# -
 
 LAG_STEPS    = [1, 3, 6, 12, 24]        # лаги баланса и снятий
 ROLL_WINDOWS = [6, 12, 24]              # окна rolling statistics
@@ -123,13 +139,13 @@ def make_features(df: pd.DataFrame) -> pd.DataFrame:
         cap = grp["atm_capacity"].astype(float)
         pct = bal / cap
 
-        # ── Лаги ────────────────────────────────────────────
+        # - Лаги -
         for lag in LAG_STEPS:
             grp[f"bal_lag_{lag}"]     = bal.shift(lag)
             grp[f"out_lag_{lag}"]     = out.shift(lag)
             grp[f"pct_lag_{lag}"]     = pct.shift(lag)
 
-        # ── Rolling statistics ───────────────────────────────
+        # - Rolling statistics -
         for w in ROLL_WINDOWS:
             grp[f"bal_roll_mean_{w}"] = bal.shift(1).rolling(w).mean()
             grp[f"bal_roll_std_{w}"]  = bal.shift(1).rolling(w).std()
@@ -137,19 +153,18 @@ def make_features(df: pd.DataFrame) -> pd.DataFrame:
             grp[f"out_roll_mean_{w}"] = out.shift(1).rolling(w).mean()
             grp[f"out_roll_sum_{w}"]  = out.shift(1).rolling(w).sum()
 
-        # ── Скорость расхода (за последние 6 периодов) ───────
+        # - Скорость расхода (за последние 6 периодов) -
         avg_burn = out.shift(1).rolling(6).mean().clip(lower=1)
         grp["burn_rate_6p"]    = avg_burn
         grp["time_to_empty"]   = (bal / avg_burn).clip(upper=200)   # в периодах
-        grp["pct_change_6p"]   = pct.shift(1).rolling(6).apply(
-            lambda x: x[-1] - x[0] if len(x) == 6 else np.nan, raw=True
-        )
+        # pct_change через .pct_change(6) — идентично predictor.py
+        grp["pct_change_6p"]   = pct.pct_change(periods=6).fillna(0).clip(-1, 1)
 
-        # ── Инкассаций за последние N периодов ───────────────
+        # - Инкассаций за последние N периодов -
         grp["inc_last_12p"]    = grp["is_incassation"].shift(1).rolling(12).sum()
         grp["inc_last_24p"]    = grp["is_incassation"].shift(1).rolling(24).sum()
 
-        # ── Целевые переменные ───────────────────────────────
+        # - Целевые переменные -
         # TARGET A: баланс через HORIZON_STEPS периодов (регрессия)
         grp["target_balance_24h"] = bal.shift(-HORIZON_STEPS)
         grp["target_pct_24h"]     = pct.shift(-HORIZON_STEPS)
@@ -192,9 +207,9 @@ def get_feature_cols(df: pd.DataFrame) -> list[str]:
     return [c for c in df.columns if c not in exclude and df[c].dtype in [np.float64, np.int64, np.float32, np.int32]]
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 3. TEMPORAL SPLIT
-# ─────────────────────────────────────────────────────────────
+# -
 
 def temporal_split(df: pd.DataFrame):
     train = df[df["transactionTime"] <= TRAIN_END].copy()
@@ -202,18 +217,18 @@ def temporal_split(df: pd.DataFrame):
     test  = df[df["transactionTime"] > VAL_END].copy()
 
     print(f"\nРазбивка данных:")
-    print(f"  Train: {len(train):>8,} строк  ({train['transactionTime'].min().date()} → {train['transactionTime'].max().date()})")
-    print(f"  Val:   {len(val):>8,} строк  ({val['transactionTime'].min().date()} → {val['transactionTime'].max().date()})")
-    print(f"  Test:  {len(test):>8,} строк  ({test['transactionTime'].min().date()} → {test['transactionTime'].max().date()})")
+    print(f"  Train: {len(train):>8,} строк  ({train['transactionTime'].min().date()} -> {train['transactionTime'].max().date()})")
+    print(f"  Val:   {len(val):>8,} строк  ({val['transactionTime'].min().date()} -> {val['transactionTime'].max().date()})")
+    print(f"  Test:  {len(test):>8,} строк  ({test['transactionTime'].min().date()} -> {test['transactionTime'].max().date()})")
     return train, val, test
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 4. ОБУЧЕНИЕ
-# ─────────────────────────────────────────────────────────────
+# -
 
 def train_regressor(train, val, feature_cols):
-    print("\n── Task A: Regression (balance_24h) ────────────────")
+    print("\n- Task A: Regression (balance_24h) -")
 
     mask_tr = train["target_balance_24h"].notna()
     mask_va = val["target_balance_24h"].notna()
@@ -248,7 +263,7 @@ def train_regressor(train, val, feature_cols):
 
 
 def train_classifier(train, val, feature_cols):
-    print("\n── Task B: Classification (cash_out_risk_24h) ──────")
+    print("\n- Task B: Classification (cash_out_risk_24h) -")
 
     mask_tr = train["target_cashout_24h"].notna()
     mask_va = val["target_cashout_24h"].notna()
@@ -282,9 +297,9 @@ def train_classifier(train, val, feature_cols):
     return model, {"roc_auc": roc, "auc_pr": aucpr}
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 5. FEATURE IMPORTANCE
-# ─────────────────────────────────────────────────────────────
+# -
 
 def print_feature_importance(model, feature_cols: list[str], top_n: int = 15, label: str = ""):
     imp = pd.Series(model.feature_importances_, index=feature_cols)
@@ -295,12 +310,12 @@ def print_feature_importance(model, feature_cols: list[str], top_n: int = 15, la
         print(f"    {feat:<35} {score:.4f}  {bar}")
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 6. ФИНАЛЬНАЯ ОЦЕНКА НА ТЕСТЕ
-# ─────────────────────────────────────────────────────────────
+# -
 
 def evaluate_on_test(reg_model, clf_model, test, feature_cols):
-    print("\n── Финальная оценка на TEST ────────────────────────")
+    print("\n- Финальная оценка на TEST -")
 
     mask = test["target_balance_24h"].notna() & test["target_cashout_24h"].notna()
     X_te = test.loc[mask, feature_cols].fillna(0)
@@ -329,9 +344,9 @@ def evaluate_on_test(reg_model, clf_model, test, feature_cols):
     }
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 7. ГЕНЕРАЦИЯ ПРЕДИКШЕНОВ ДЛЯ ВСЕХ ATM (последние данные)
-# ─────────────────────────────────────────────────────────────
+# -
 
 def generate_predictions(df: pd.DataFrame, reg_model, clf_model, feature_cols: list[str]) -> pd.DataFrame:
     """
@@ -384,9 +399,9 @@ def generate_predictions(df: pd.DataFrame, reg_model, clf_model, feature_cols: l
     return result
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # 8. СОХРАНЕНИЕ АРТЕФАКТОВ
-# ─────────────────────────────────────────────────────────────
+# -
 
 def save_artifacts(reg_model, clf_model, feature_cols, metrics: dict):
     joblib.dump(reg_model, MODELS_DIR / "xgb_regressor.joblib")
@@ -403,14 +418,14 @@ def save_artifacts(reg_model, clf_model, feature_cols, metrics: dict):
         f"Train end:    {TRAIN_END}",
         f"Val end:      {VAL_END}",
         "",
-        "── Validation ─────────────────────────────",
+        "- Validation -",
         f"  Regression  MAE:     {metrics.get('mae', 0):>15,.0f} сум",
         f"  Regression  RMSE:    {metrics.get('rmse', 0):>15,.0f} сум",
         f"  Regression  MAPE:    {metrics.get('mape_pct', 0):>14.2f}%",
         f"  Classifier  ROC-AUC: {metrics.get('roc_auc', 0):.4f}",
         f"  Classifier  AUC-PR:  {metrics.get('auc_pr', 0):.4f}",
         "",
-        "── Test ────────────────────────────────────",
+        "- Test -",
         f"  Regression  MAE:     {metrics.get('test_mae', 0):>15,.0f} сум",
         f"  Regression  RMSE:    {metrics.get('test_rmse', 0):>15,.0f} сум",
         f"  Regression  MAPE:    {metrics.get('test_mape_pct', 0):>14.2f}%",
@@ -426,9 +441,9 @@ def save_artifacts(reg_model, clf_model, feature_cols, metrics: dict):
     print(f"  Репорт:  {report_path}")
 
 
-# ─────────────────────────────────────────────────────────────
+# -
 # MAIN
-# ─────────────────────────────────────────────────────────────
+# -
 
 def main():
     print("=" * 60)

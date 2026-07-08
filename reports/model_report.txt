@@ -5,16 +5,16 @@ Cash-out thr: 20%
 Train end:    2024-09-30
 Val end:      2024-11-30
 
-── Validation ─────────────────────────────
-  Regression  MAE:          11,172,417 сум
-  Regression  RMSE:         13,639,481 сум
-  Regression  MAPE:             21.39%
-  Classifier  ROC-AUC: 0.9306
-  Classifier  AUC-PR:  0.9612
+- Validation -
+  Regression  MAE:          27,220,515 сум
+  Regression  RMSE:         51,299,226 сум
+  Regression  MAPE:              6.81%
+  Classifier  ROC-AUC: 0.9903
+  Classifier  AUC-PR:  0.9410
 
-── Test ────────────────────────────────────
-  Regression  MAE:          11,032,147 сум
-  Regression  RMSE:         13,459,927 сум
-  Regression  MAPE:             21.15%
-  Classifier  ROC-AUC: 0.9357
-  Classifier  AUC-PR:  0.9579
+- Test -
+  Regression  MAE:          27,691,379 сум
+  Regression  RMSE:         51,485,868 сум
+  Regression  MAPE:              6.92%
+  Classifier  ROC-AUC: 0.9874
+  Classifier  AUC-PR:  0.9184
