@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Импорт банкоматов — XLSX</title>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --border: #e5eaf3;
+      --text: #111827;
+      --muted: #667085;
+      --primary: #2563eb;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+      --shadow-md: 0 12px 28px rgba(16, 24, 40, .08);
+    }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at top left, rgba(37, 99, 235, .10), transparent 30%), var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+    }
+    header {
+      height: 60px; padding: 0 24px; display: flex; align-items: center; gap: 14px;
+      background: rgba(255,255,255,.88); border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(18px); box-shadow: var(--shadow-sm);
+      position: sticky; top: 0; z-index: 10;
+    }
+    h1 { font-size: 18px; font-weight: 850; letter-spacing: -.02em; }
+    .badge {
+      background: linear-gradient(135deg, var(--primary), #60a5fa);
+      color: #fff; border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 800;
+    }
+    .spacer { flex: 1; }
+    .nav-link {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 12px; border-radius: 12px; border: 1px solid var(--border);
+      background: #fff; color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 700;
+    }
+    .nav-link:hover { color: var(--primary); border-color: #bfdbfe; }
+
+    .page { width: min(880px, calc(100vw - 32px)); margin: 32px auto 40px; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 18px; padding: 28px; box-shadow: var(--shadow-md);
+    }
+    .card h2 {
+      font-size: 16px; font-weight: 800; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card p { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 18px; }
+
+    .dropzone {
+      border: 2px dashed #c8d2e3; border-radius: 14px;
+      padding: 50px 20px; text-align: center; cursor: pointer;
+      background: #f8fafc; transition: all 0.2s;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--primary); background: #eef4ff;
+    }
+    .dropzone .icon { width: 48px; height: 48px; color: var(--primary); margin: 0 auto 12px; display: block; }
+    .dropzone .label { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .dropzone .hint { font-size: 12px; color: var(--muted); }
+    .dropzone .file {
+      margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--success);
+    }
+
+    .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+    button {
+      padding: 11px 22px; border-radius: 11px; border: 0; cursor: pointer;
+      font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px;
+      transition: all 0.15s;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-ghost { background: #fff; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: #f8fafc; }
+    .btn-danger { background: #fff; color: var(--danger); border: 1px solid #fecaca; }
+    .btn-danger:hover { background: #fef2f2; }
+
+    .options {
+      display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+      background: #fef3c7; border: 1px solid #fde68a; border-radius: 11px;
+      font-size: 13px; color: #92400e; margin-bottom: 18px;
+    }
+    .options input { transform: scale(1.1); cursor: pointer; }
+
+    .progress {
+      margin-top: 18px; padding: 14px 18px; border-radius: 12px;
+      background: #eef4ff; border: 1px solid #bfdbfe; font-size: 13px;
+      display: none; align-items: center; gap: 10px;
+    }
+    .progress.active { display: flex; }
+    .spinner {
+      width: 18px; height: 18px; border: 2.5px solid #c7d7f7;
+      border-top-color: var(--primary); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result { margin-top: 18px; display: none; }
+    .result.show { display: block; }
+    .result .summary {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px; margin-bottom: 16px;
+    }
+    .result .stat {
+      padding: 14px 16px; border-radius: 12px;
+      background: #f8fafc; border: 1px solid var(--border);
+    }
+    .result .stat .v { font-size: 22px; font-weight: 850; line-height: 1.1; }
+    .result .stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 3px; }
+    .result .stat.ok      .v { color: var(--success); }
+    .result .stat.insert  .v { color: var(--primary); }
+    .result .stat.warn    .v { color: var(--warning); }
+    .result .stat.err     .v { color: var(--danger); }
+
+    .result .columns {
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: 11px; padding: 12px 14px; font-size: 12px;
+      margin-bottom: 14px; color: var(--muted);
+    }
+    .result .columns code {
+      background: #fff; padding: 2px 6px; border-radius: 5px;
+      font-family: ui-monospace, monospace; color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .result .errors { max-height: 220px; overflow: auto; font-size: 12px; }
+    .result .errors table { width: 100%; border-collapse: collapse; }
+    .result .errors th, .result .errors td {
+      text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border);
+    }
+    .result .errors th { background: #fef2f2; color: var(--danger); font-weight: 700; }
+
+    .info {
+      background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px;
+      padding: 14px 16px; font-size: 12px; color: #075985; line-height: 1.6;
+      margin-top: 24px;
+    }
+    .info b { color: #0c4a6e; }
+    .info code {
+      background: #fff; padding: 1px 6px; border-radius: 4px;
+      font-family: ui-monospace, monospace; border: 1px solid #bae6fd;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <span class="badge">ATM</span>
+  <h1>Импорт реестра банкоматов</h1>
+  <div class="spacer"></div>
+  <a class="nav-link" href="/dashboard/index.html">
+    <i data-lucide="map" style="width:16px;height:16px"></i> Карта
+  </a>
+  <a class="nav-link" href="/docs" target="_blank">
+    <i data-lucide="code" style="width:16px;height:16px"></i> API
+  </a>
+</header>
+
+<div class="page">
+  <div class="card">
+    <h2><i data-lucide="file-spreadsheet" style="width:18px;height:18px"></i> Загрузить XLSX</h2>
+    <p>
+      Файл должен содержать 13 колонок в любом порядке: номер ATM, локал код, область
+      (<b>Худуд</b>), филиал, модель, тип сети (<b>Тулов тизими тури</b>), серия,
+      <b>Merchant id</b>, <b>Term id</b>, <b>Манзили</b>, <b>Геолокация (alt)</b>,
+      <b>Геолокация (long)</b>. Координаты — десятичные числа (например, <code>41.30</code>).
+    </p>
+
+    <div class="options">
+      <input type="checkbox" id="replace" />
+      <label for="replace">
+        <b>Очистить таблицу перед импортом</b> — удалит все ранее загруженные ATM.
+        Без этой галочки файл дополнит/обновит существующие записи по <code>term id</code>.
+      </label>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <i data-lucide="upload-cloud" class="icon"></i>
+      <div class="label">Перетащите XLSX сюда или нажмите для выбора</div>
+      <div class="hint">Поддерживается только .xlsx (Excel 2007+)</div>
+      <div class="file" id="fileName" style="display:none"></div>
+      <input type="file" id="fileInput" accept=".xlsx" style="display:none" />
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="uploadBtn" disabled>
+        <i data-lucide="play" style="width:16px;height:16px"></i> Загрузить
+      </button>
+      <button class="btn-ghost" id="resetBtn">
+        <i data-lucide="x" style="width:16px;height:16px"></i> Сбросить
+      </button>
+      <button class="btn-danger" id="clearBtn">
+        <i data-lucide="trash-2" style="width:16px;height:16px"></i> Очистить БД
+      </button>
+    </div>
+
+    <div class="progress" id="progress">
+      <div class="spinner"></div>
+      <span id="progressText">Загружаю…</span>
+    </div>
+
+    <div class="result" id="result">
+      <div class="summary">
+        <div class="stat insert"><div class="v" id="rInserted">0</div><div class="l">Добавлено</div></div>
+        <div class="stat ok"><div class="v" id="rUpdated">0</div><div class="l">Обновлено</div></div>
+        <div class="stat warn"><div class="v" id="rSkipped">0</div><div class="l">Пропущено</div></div>
+        <div class="stat err"><div class="v" id="rErrors">0</div><div class="l">Ошибок</div></div>
+        <div class="stat"><div class="v" id="rTotal">0</div><div class="l">Всего в файле</div></div>
+      </div>
+      <div class="columns" id="rColumns"></div>
+      <div class="errors" id="rErrorsTable" style="display:none">
+        <table>
+          <thead><tr><th>Строка</th><th>Term ID</th><th>Ошибка</th></tr></thead>
+          <tbody id="rErrorsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="info">
+      <b>Поддерживаемые варианты заголовков:</b><br>
+      <code>№</code> (номер ATM) ·
+      <code>Худуд</code> или <code>Область</code> или <code>Viloyat</code> ·
+      <code>Модели</code> или <code>Модель</code> ·
+      <code>Тулов тизими тури</code> или <code>Тармоқ тизими тури</code> ·
+      <code>Term id</code> или <code>Терминал ID</code> ·
+      <code>Манзили</code> или <code>Адрес</code> ·
+      <code>Геолокация (alt)</code> / <code>(long)</code><br><br>
+      Если заголовки совсем не распознаны — используется
+      <b>позиционный маппинг A→M</b>.
+    </div>
+  </div>
+</div>
+
+<script>
+  lucide.createIcons();
+
+  const API = `${location.protocol}//${location.hostname}:8000`;
+  const dropzone   = document.getElementById('dropzone');
+  const fileInput  = document.getElementById('fileInput');
+  const fileName   = document.getElementById('fileName');
+  const uploadBtn  = document.getElementById('uploadBtn');
+  const resetBtn   = document.getElementById('resetBtn');
+  const clearBtn   = document.getElementById('clearBtn');
+  const replace    = document.getElementById('replace');
+  const progress   = document.getElementById('progress');
+  const progressText = document.getElementById('progressText');
+  const result     = document.getElementById('result');
+
+  let selectedFile = null;
+
+  // ── Drag & drop ────────────────────────────────────────────
+  dropzone.addEventListener('click', () => fileInput.click());
+  ['dragover', 'dragenter'].forEach(e => {
+    dropzone.addEventListener(e, ev => {
+      ev.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(e => {
+    dropzone.addEventListener(e, ev => {
+      ev.preventDefault();
+      dropzone.classList.remove('drag-over');
+    });
+  });
+  dropzone.addEventListener('drop', ev => {
+    if (ev.dataTransfer.files.length) {
+      handleFile(ev.dataTransfer.files[0]);
+    }
+  });
+  fileInput.addEventListener('change', ev => {
+    if (ev.target.files.length) handleFile(ev.target.files[0]);
+  });
+
+  function handleFile(f) {
+    if (!f.name.toLowerCase().endsWith('.xlsx')) {
+      alert('Только .xlsx файлы');
+      return;
+    }
+    selectedFile = f;
+    fileName.textContent = `📎 ${f.name}  (${(f.size / 1024).toFixed(1)} KB)`;
+    fileName.style.display = 'block';
+    uploadBtn.disabled = false;
+    result.classList.remove('show');
+  }
+
+  // ── Загрузка ───────────────────────────────────────────────
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    uploadBtn.disabled = true;
+    progress.classList.add('active');
+    progressText.textContent = `Загружаю ${selectedFile.name}…`;
+    result.classList.remove('show');
+
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    const url = `${API}/api/atms/import?replace=${replace.checked}`;
+
+    try {
+      const res = await fetch(url, { method: 'POST', body: fd });
+      const data = await res.json();
+      progress.classList.remove('active');
+
+      if (!res.ok) {
+        progress.classList.add('active');
+        progress.style.background = '#fef2f2';
+        progress.style.borderColor = '#fecaca';
+        progressText.innerHTML = `<b style="color:var(--danger)">Ошибка:</b> ${data.detail || res.statusText}`;
+        uploadBtn.disabled = false;
+        return;
+      }
+
+      progress.style.background = '#ecfdf5';
+      progress.style.borderColor = '#a7f3d0';
+      progress.classList.add('active');
+      progressText.innerHTML = `<b style="color:var(--success)">Готово.</b> ${data.imported} новых, ${data.updated} обновлено, ${data.skipped_no_terminal_id} пропущено, ${data.validation_errors_count} ошибок.`;
+
+      showResult(data);
+    } catch (err) {
+      progress.classList.add('active');
+      progress.style.background = '#fef2f2';
+      progress.style.borderColor = '#fecaca';
+      progressText.innerHTML = `<b style="color:var(--danger)">Сеть:</b> ${err.message}`;
+    }
+    uploadBtn.disabled = false;
+  });
+
+  function showResult(d) {
+    document.getElementById('rInserted').textContent = d.imported;
+    document.getElementById('rUpdated').textContent  = d.updated;
+    document.getElementById('rSkipped').textContent  = d.skipped_no_terminal_id;
+    document.getElementById('rErrors').textContent   = d.validation_errors_count;
+    document.getElementById('rTotal').textContent    = d.total_rows_in_file;
+
+    const cols = Object.entries(d.columns_detected)
+      .map(([k, v]) => `<code>${k}</code>→${v}`).join(' · ');
+    document.getElementById('rColumns').innerHTML =
+      `<b>Колонок распознано: ${Object.keys(d.columns_detected).length}/13</b> · ${cols}`;
+
+    if (d.validation_errors && d.validation_errors.length) {
+      document.getElementById('rErrorsTable').style.display = 'block';
+      const body = document.getElementById('rErrorsBody');
+      body.innerHTML = d.validation_errors.map(e =>
+        `<tr><td>${e.row}</td><td>${e.terminal_id || '—'}</td><td>${e.error}</td></tr>`
+      ).join('');
+    } else {
+      document.getElementById('rErrorsTable').style.display = 'none';
+    }
+    result.classList.add('show');
+  }
+
+  // ── Сброс / Очистка ────────────────────────────────────────
+  resetBtn.addEventListener('click', () => {
+    selectedFile = null;
+    fileInput.value = '';
+    fileName.style.display = 'none';
+    uploadBtn.disabled = true;
+    result.classList.remove('show');
+    progress.classList.remove('active');
+    progress.style.background = '';
+    progress.style.borderColor = '';
+  });
+
+  clearBtn.addEventListener('click', async () => {
+    if (!confirm('Удалить ВСЕ ATM из базы? Это необратимо.')) return;
+    const res = await fetch(`${API}/api/atms/import/clear`, { method: 'POST' });
+    const data = await res.json();
+    alert(`Удалено: ${data.deleted} ATM.`);
+  });
+</script>
+</body>
+</html>

@@ -2,19 +2,19 @@
 Парсер XLSX с реестром банкоматов.
 
 Ожидаемая структура (нумерация по EXCEL-столбцам, 1-based):
-  A — Номер банкомата
-  B — Номер по филиалам
+  A — Номер банкомата (или просто "№")
+  B — Номер по филиалам (или просто "№")
   C — Локал код
-  D — Область
+  D — Худуд / Область / Регион
   E — Филиал
-  F — Модель банкомата
-  G — Тармоқ тизими тури (тип сети)
-  H — Серия рақами
-  I — Мерчант ID
-  J — Терминал ID
-  K — Адрес
-  L — Геолокация (lat)
-  M — Геолокация (lon)
+  F — Модели (модель банкомата)
+  G — Тулов тизими тури (тип сети)
+  H — Серия раками
+  I — Merchant id
+  J — Term id (терминал ID)
+  K — Манзили (адрес)
+  L — Геолокация (alt/lat)
+  M — Геолокация (long/lon)
 
 Первая строка — заголовок.
 """
@@ -36,63 +36,85 @@ log = logging.getLogger(__name__)
 
 # Синонимы заголовков (в lower-case, без пробелов) → каноническое имя поля
 HEADER_ALIASES: Dict[str, str] = {
-    # ATM
+    # ── ATM number (колонка A) ──────────────────────────────
     "номербанкомата": "atm_number",
     "номер_банкомата": "atm_number",
     "atm_number": "atm_number",
     "atmnumber": "atm_number",
     "atm": "atm_number",
+    "номератм": "atm_number",
+    "номер": "atm_number",
+    "nomer": "atm_number",   # нормализованный "№"
+    "no": "atm_number",
+    "": "atm_number",   # на случай пустой шапки
+    "n": "atm_number",
 
-    # Branch code
+    # ── Branch code (колонка B) ────────────────────────────
     "номерпофилиалам": "branch_code",
     "номер_по_филиалам": "branch_code",
     "branch_code": "branch_code",
     "branchcode": "branch_code",
+    "филиалкод": "branch_code",
+    "филиал_код": "branch_code",
+    "кодфилиала": "branch_code",
 
-    # Local code
+    # ── Local code (колонка C) ─────────────────────────────
     "локалкод": "local_code",
     "локал_код": "local_code",
     "local_code": "local_code",
     "localcode": "local_code",
     "локал": "local_code",
 
-    # Region
+    # ── Region (колонка D) — Худуд / Область / Вилоят ──────
+    "худуд": "region",
     "область": "region",
     "region": "region",
     "viloyat": "region",
+    "вилоят": "region",
+    "район": "region",
+    "district": "region",
 
-    # Branch
+    # ── Branch (колонка E) ─────────────────────────────────
     "филиал": "branch",
     "branch": "branch",
+    "filial": "branch",
 
-    # Model
+    # ── Model (колонка F) — Модель / Модели ────────────────
     "модельбанкомата": "model",
     "модель_банкомата": "model",
+    "модели": "model",
+    "модел": "model",
     "model": "model",
     "модель": "model",
 
-    # Network type
+    # ── Network type (колонка G) — Тулов / Тармоқ ─────────
+    "туловтизимитури": "network_type",
+    "тулов_тизими_тури": "network_type",
+    "тулов": "network_type",
     "тармоқтизимитури": "network_type",
     "тармоктизимитури": "network_type",
     "network_type": "network_type",
     "networktype": "network_type",
     "тармок": "network_type",
 
-    # Serial
+    # ── Serial (колонка H) ─────────────────────────────────
     "серияраками": "serial",
     "серия_раками": "serial",
-    "серия_рақами": "serial",   # совместимость (нормализатор всё равно приведёт)
+    "серия_рақами": "serial",
     "serial": "serial",
     "серия": "serial",
+    "sn": "serial",
 
-    # Merchant ID
+    # ── Merchant ID (колонка I) ───────────────────────────
     "мерчантайди": "merchant_id",
     "мерчант_айди": "merchant_id",
     "мерчантid": "merchant_id",
     "merchant_id": "merchant_id",
     "merchantid": "merchant_id",
+    "merchant": "merchant_id",
+    "mid": "merchant_id",
 
-    # Terminal ID
+    # ── Terminal ID (колонка J) — Term id / Терминал ID ──
     "терминалайди": "terminal_id",
     "терминал_айди": "terminal_id",
     "терминалid": "terminal_id",
@@ -100,30 +122,39 @@ HEADER_ALIASES: Dict[str, str] = {
     "terminalid": "terminal_id",
     "term_id": "terminal_id",
     "termid": "terminal_id",
+    "tid": "terminal_id",
+    "term": "terminal_id",
 
-    # Address
+    # ── Address (колонка K) — Манзили / Адрес ─────────────
+    "манзили": "address",
+    "манзил": "address",
     "адрес": "address",
     "address": "address",
     "manzil": "address",
 
-    # Lat / Lon
+    # ── Lat / Lon (колонки L, M) — Геолокация (alt/long) ──
+    # alt = "altitude" (сокращение), в нашей таблице = latitude
     "геолокация(alt)": "lat",
     "геолокация_alt": "lat",
     "геолокация(лат)": "lat",
     "геолокация(широта)": "lat",
+    "геолокацияalt": "lat",
     "геолокацияlat": "lat",
     "геолокация": "lat",
-    "lat": "lat",
+    "alt": "lat",
     "latitude": "lat",
+    "lat": "lat",
     "широта": "lat",
 
     "геолокация(long)": "lon",
     "геолокация_long": "lon",
     "геолокация(долгота)": "lon",
+    "геолокацияlong": "lon",
     "геолокацияlon": "lon",
+    "long": "lon",
+    "longitude": "lon",
     "lon": "lon",
     "lng": "lon",
-    "longitude": "lon",
     "долгота": "lon",
 }
 
@@ -144,6 +175,8 @@ def _normalize_header(text: Any) -> str:
     }
     for src, dst in cyr_map.items():
         s = s.replace(src, dst)
+    # Спец-символ "номер по порядку" → канонический маркер "nomer"
+    s = s.replace("№", "nomer")
     s = re.sub(r"[\s_\-\.,()]+", "", s)
     s = s.replace("'", "").replace("`", "").replace("'", "")
     return s
@@ -200,6 +233,9 @@ def _match_headers(ws) -> Tuple[Dict[int, str], int]:
 
     Если в первой строке не нашлось ни одного знакомого заголовка —
     считаем, что первая строка — данные, и поля выводятся по позиции.
+
+    Особый случай: две колонки с заголовком "№" (atm_number и branch_code).
+    Первой "№" → atm_number, второй "№" → branch_code.
     """
     header_row_idx = None
     for row_idx in range(1, min(6, ws.max_row + 1)):
@@ -239,10 +275,35 @@ def _match_headers(ws) -> Tuple[Dict[int, str], int]:
     header_row = next(
         ws.iter_rows(min_row=header_row_idx, max_row=header_row_idx, values_only=True)
     )
+
+    # Сначала разбираем колонки, у которых есть уникальные алиасы
     for col_idx, cell in enumerate(header_row, start=1):
         norm = _normalize_header(cell)
         if norm in HEADER_ALIASES:
-            column_map[col_idx] = HEADER_ALIASES[norm]
+            field = HEADER_ALIASES[norm]
+            if field not in column_map.values():
+                column_map[col_idx] = field
+            # дубликаты atm_number → branch_code
+            elif field == "atm_number" and "branch_code" not in column_map.values():
+                column_map[col_idx] = "branch_code"
+            # остальные дубли — игнорируем
+
+    # Эвристика: если в левых 2-3 колонках все значения нормализуются
+    # в "номер" / "no" / "n" (т.е. две "№") и ни atm_number, ни branch_code
+    # ещё не сопоставлены — ставим их по позиции
+    if "atm_number" not in column_map.values():
+        for col_idx, cell in enumerate(header_row, start=1):
+            norm = _normalize_header(cell)
+            if norm in ("", "n", "no", "номер"):
+                column_map[col_idx] = "atm_number"
+                break
+    if "branch_code" not in column_map.values():
+        for col_idx, cell in enumerate(header_row, start=1):
+            norm = _normalize_header(cell)
+            if norm in ("", "n", "no", "номер"):
+                column_map[col_idx] = "branch_code"
+                break
+
     return column_map, header_row_idx
 
 

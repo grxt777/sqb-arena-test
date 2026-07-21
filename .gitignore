@@ -5,3 +5,6 @@ __pycache__/
 .env
 .DS_Store
 tmp_git_lfs/
+*.db
+data/
+
