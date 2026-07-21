@@ -1,15 +1,17 @@
 #!/bin/bash
-# ATM Cash Intelligence - Startup Script
+# ATM Monitor — Startup Script
 
-echo "🚀 Starting ATM Cash Intelligence..."
+echo "🚀 Starting ATM Monitor..."
 
-# 1. Install dependencies
-echo "📦 Checking and installing dependencies..."
+echo "📦 Installing dependencies..."
 python3 -m pip install -r requirements.txt
 
-# 2. Set PYTHONPATH to include the api directory
 export PYTHONPATH=$PYTHONPATH:$(pwd)/api
 
-# 3. Start the server
 echo "🌐 Starting FastAPI server on http://localhost:8000"
+echo "   Dashboard: http://localhost:8000/dashboard/index.html"
+echo "   Swagger:   http://localhost:8000/docs"
+echo "   Import ATM: POST /api/atms/import (XLSX)"
+echo "================================================"
+
 python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
