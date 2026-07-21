@@ -6,43 +6,57 @@ echo ===================================================
 echo.
 
 :: 1. Проверка наличия Python в системе
-set PY_CMD=python
-%PY_CMD% --version >nul 2>&1
-if %errorlevel% neq 0 (
-    set PY_CMD=py
-    %PY_CMD% --version >nul 2>&1
-    if %errorlevel% neq 0 (
-        :: Проверяем, может Python уже установлен локально без прав админа
-        if exist "%LocalAppData%\Programs\Python\Python310\python.exe" (
-            set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
-            echo [+] Найден установленный локально Python.
-        ) else (
-            echo [!] Python не найден в системе.
-            echo Скачиваю установщик Python 3.10...
-            powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe' -OutFile 'python_installer.exe'"
-            
-            echo.
-            echo [+] Скачивание завершено.
-            echo [+] Установка Python локально (БЕЗ ПРАВ АДМИНИСТРАТОРА)...
-            echo [!] Пожалуйста, подождите, идет установка (появится окно с прогресс-баром)...
-            
-            :: Запуск без UAC: InstallAllUsers=0, Include_launcher=0
-            start /wait python_installer.exe /passive InstallAllUsers=0 Include_launcher=0 PrependPath=1
-            del python_installer.exe
-            
-            :: Проверяем локальный путь после установки
-            if exist "%LocalAppData%\Programs\Python\Python310\python.exe" (
-                set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
-                echo [+] Python успешно установлен локально!
-            ) else (
-                echo [!] Ошибка: Не удалось установить Python или найти его исполняемый файл.
-                echo Попробуйте установить Python вручную с официального сайта.
-                pause
-                exit
-            )
-        )
-    )
+where python >nul 2>&1
+if %errorlevel% equ 0 (
+    set PY_CMD=python
+    goto python_found
 )
+
+where py >nul 2>&1
+if %errorlevel% equ 0 (
+    set PY_CMD=py
+    goto python_found
+)
+
+if exist "%LocalAppData%\Programs\Python\Python310\python.exe" (
+    set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
+    echo [+] Найден установленный локально Python.
+    goto python_found
+)
+
+echo [!] Python не найден в системе.
+echo Скачиваю установщик Python 3.10...
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe' -OutFile 'python_installer.exe'"
+
+if not exist python_installer.exe (
+    echo [!] Ошибка при скачивании установщика Python.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [+] Скачивание завершено.
+echo [+] Установка Python локально (БЕЗ ПРАВ АДМИНИСТРАТОРА)...
+echo [!] Пожалуйста, подождите, идет установка (появится окно с прогресс-баром)...
+
+:: Запуск без UAC: InstallAllUsers=0, Include_launcher=0
+start /wait python_installer.exe /passive InstallAllUsers=0 Include_launcher=0 PrependPath=1
+del python_installer.exe
+
+:: Проверяем локальный путь после установки
+if exist "%LocalAppData%\Programs\Python\Python310\python.exe" (
+    set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
+    echo [+] Python успешно установлен локально!
+    goto python_found
+)
+
+echo [!] Ошибка: Не удалось установить Python или найти его исполняемый файл.
+echo Попробуйте установить Python вручную с официального сайта.
+pause
+exit /b 1
+
+:python_found
+echo [+] Использование Python: %PY_CMD%
 
 :: 2. Останавливаем процессы на порту 8000
 echo.
