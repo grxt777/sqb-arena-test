@@ -2,10 +2,11 @@
 title ATM Monitor Setup and Start
 echo ===================================================
 echo   ATM Monitor - Автоматическая настройка нового ПК
+echo   (Портативный запуск без прав администратора)
 echo ===================================================
 echo.
 
-:: 1. Проверка наличия Python в системе (глобальный)
+:: 1. Проверка наличия Python в системе
 where python >nul 2>&1
 if not errorlevel 1 set PY_CMD=python
 if not errorlevel 1 goto python_found
@@ -14,80 +15,76 @@ where py >nul 2>&1
 if not errorlevel 1 set PY_CMD=py
 if not errorlevel 1 goto python_found
 
-:: 2. Поиск Python в пользовательской директории LocalAppData
-if exist "%LocalAppData%\Programs\Python" (
-    for /r "%LocalAppData%\Programs\Python" %%i in (python.exe) do (
-        if exist "%%i" (
-            set PY_CMD="%%i"
-            goto python_found
-        )
-    )
+if exist "%~dp0python_embed\python.exe" (
+    set PY_CMD="%~dp0python_embed\python.exe"
+    echo [+] Найдена портативная версия Python.
+    goto python_found
 )
 
-:: 3. Если Python не найден - скачиваем и устанавливаем
 echo [!] Python не найден в системе.
-echo Скачиваю установщик Python 3.10 (это может занять около минуты)...
-powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe', 'python_installer.exe')"
+echo [+] Начинаю скачивание портативной версии Python (без установки)...
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip', 'python_embed.zip')"
 
-if not exist python_installer.exe (
-    echo.
-    echo [!] Ошибка: Не удалось скачать установщик Python.
-    echo Пожалуйста, скачайте и установите Python 3.10 (64-bit) вручную:
-    echo https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe
-    echo При установке ОБЯЗАТЕЛЬНО поставьте галочку "Add Python to PATH".
+if not exist python_embed.zip (
+    echo [!] Ошибка: Не удалось скачать архивы Python. Проверьте интернет-соединение.
     pause
     exit /b 1
 )
 
-echo.
-echo [+] Скачивание завершено.
-echo [+] Установка Python (БЕЗ ПРАВ АДМИНИСТРАТОРА)...
-echo [!] Пожалуйста, подождите, идет установка (появится окно с прогресс-баром)...
+echo [+] Распаковка портативного Python...
+powershell -Command "Expand-Archive -Path 'python_embed.zip' -DestinationPath 'python_embed' -Force"
+del python_embed.zip
 
-:: Запуск тихой установки для текущего пользователя без прав админа
-start /wait "" python_installer.exe /passive InstallAllUsers=0 Include_launcher=0 PrependPath=1
-del python_installer.exe
+:: Активация импорта внешних модулей в портативном Python (необходимо для pip)
+echo. >> python_embed\python310._pth
+echo import site >> python_embed\python310._pth
 
-:: Повторный поиск Python в LocalAppData после установки
-if exist "%LocalAppData%\Programs\Python" (
-    for /r "%LocalAppData%\Programs\Python" %%i in (python.exe) do (
-        if exist "%%i" (
-            set PY_CMD="%%i"
-            echo [+] Python успешно установлен локально!
-            goto python_found
-        )
-    )
+echo [+] Скачивание менеджера пакетов pip...
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')"
+
+if not exist get-pip.py (
+    echo [!] Ошибка: Не удалось скачать get-pip.py.
+    pause
+    exit /b 1
 )
 
-echo.
-echo [!] Не удалось обнаружить Python после установки.
-echo Пожалуйста, установите Python 3.10 вручную с официального сайта.
+echo [+] Установка pip...
+python_embed\python.exe get-pip.py --no-warn-script-location
+del get-pip.py
+
+if exist "%~dp0python_embed\python.exe" (
+    set PY_CMD="%~dp0python_embed\python.exe"
+    echo [+] Портативный Python успешно настроен!
+    goto python_found
+)
+
+echo [!] Ошибка: Не удалось настроить портативный Python.
 pause
 exit /b 1
 
 :python_found
 echo [+] Использование Python: %PY_CMD%
 
-:: 4. Останавливаем процессы на порту 8000
+:: 2. Останавливаем процессы на порту 8000
 echo.
 echo [+] Освобождаем порт 8000...
 taskkill /F /IM python.exe >nul 2>&1
 taskkill /F /IM uvicorn.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
-:: 5. Установка pip и зависимостей (используем --user для гарантии отсутствия запроса прав)
+:: 3. Установка pip и зависимостей
 echo.
 echo [+] Проверка и обновление pip...
-%PY_CMD% -m pip install --user --upgrade pip
+%PY_CMD% -m pip install --upgrade pip
 
 echo.
 echo [+] Установка библиотек из requirements.txt...
-%PY_CMD% -m pip install --user -r requirements.txt
+%PY_CMD% -m pip install -r requirements.txt
 
-:: 6. Настройка PYTHONPATH
+:: 4. Настройка PYTHONPATH
 set PYTHONPATH=%~dp0api;%PYTHONPATH%
 
-:: 7. Запуск
+:: 5. Запуск
 echo.
 echo ===================================================
 echo   Сервер готов к запуску!
