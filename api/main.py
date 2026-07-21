@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 import uvicorn
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -87,13 +87,7 @@ if dashboard_dir.exists():
 
 @app.get("/")
 async def root():
-    return {
-        "service": "ATM Monitor API",
-        "version": "2.0.0",
-        "docs": "/docs",
-        "dashboard": "/dashboard/index.html",
-        "atms_in_db": count_atms(),
-    }
+    return RedirectResponse(url="/dashboard/index.html")
 
 
 # ═══════════════════════════════════════════════════════════
