@@ -1,5 +1,5 @@
 @echo off
-title ATM Monitor Setup ^& Start
+title ATM Monitor Setup and Start
 echo ===================================================
 echo   ATM Monitor - Автоматическая настройка нового ПК
 echo ===================================================
@@ -7,32 +7,23 @@ echo.
 
 :: 1. Проверка наличия Python в системе
 where python >nul 2>&1
-if %errorlevel% equ 0 (
-    set PY_CMD=python
-    goto python_found
-)
+if not errorlevel 1 set PY_CMD=python
+if not errorlevel 1 goto python_found
 
 where py >nul 2>&1
-if %errorlevel% equ 0 (
-    set PY_CMD=py
-    goto python_found
-)
+if not errorlevel 1 set PY_CMD=py
+if not errorlevel 1 goto python_found
 
-if exist "%LocalAppData%\Programs\Python\Python310\python.exe" (
-    set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
-    echo [+] Найден установленный локально Python.
-    goto python_found
-)
+if exist "%LocalAppData%\Programs\Python\Python310\python.exe" set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
+if exist "%LocalAppData%\Programs\Python\Python310\python.exe" goto python_found
 
 echo [!] Python не найден в системе.
 echo Скачиваю установщик Python 3.10...
 powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe' -OutFile 'python_installer.exe'"
 
-if not exist python_installer.exe (
-    echo [!] Ошибка при скачивании установщика Python.
-    pause
-    exit /b 1
-)
+if not exist python_installer.exe echo [!] Ошибка при скачивании установщика Python.
+if not exist python_installer.exe pause
+if not exist python_installer.exe exit /b 1
 
 echo.
 echo [+] Скачивание завершено.
@@ -44,11 +35,8 @@ start /wait python_installer.exe /passive InstallAllUsers=0 Include_launcher=0 P
 del python_installer.exe
 
 :: Проверяем локальный путь после установки
-if exist "%LocalAppData%\Programs\Python\Python310\python.exe" (
-    set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
-    echo [+] Python успешно установлен локально!
-    goto python_found
-)
+if exist "%LocalAppData%\Programs\Python\Python310\python.exe" set PY_CMD="%LocalAppData%\Programs\Python\Python310\python.exe"
+if exist "%LocalAppData%\Programs\Python\Python310\python.exe" goto python_found
 
 echo [!] Ошибка: Не удалось установить Python или найти его исполняемый файл.
 echo Попробуйте установить Python вручную с официального сайта.
@@ -60,11 +48,9 @@ echo [+] Использование Python: %PY_CMD%
 
 :: 2. Останавливаем процессы на порту 8000
 echo.
-echo [+] Проверяем порт 8000...
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr :8000 ^| findstr LISTENING') do (
-    echo [!] Обнаружен старый процесс на порту 8000 (PID: %%p). Завершаю...
-    taskkill /PID %%p /F >nul 2>&1
-)
+echo [+] Освобождаем порт 8000...
+taskkill /F /IM python.exe >nul 2>&1
+taskkill /F /IM uvicorn.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 :: 3. Установка pip и зависимостей (используем --user для гарантии отсутствия запроса прав)
