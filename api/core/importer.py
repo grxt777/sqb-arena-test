@@ -114,7 +114,6 @@ HEADER_ALIASES: Dict[str, str] = {
     "merchant": "merchant_id",
     "mid": "merchant_id",
 
-    # ── Terminal ID (колонка J) — Term id / Терминал ID ──
     "терминалайди": "terminal_id",
     "терминал_айди": "terminal_id",
     "терминалid": "terminal_id",
@@ -122,6 +121,10 @@ HEADER_ALIASES: Dict[str, str] = {
     "terminalid": "terminal_id",
     "term_id": "terminal_id",
     "termid": "terminal_id",
+    "tеrmid": "terminal_id",
+    "tеrm_id": "terminal_id",
+    "tеrm": "terminal_id",
+    "терминал": "terminal_id",
     "tid": "terminal_id",
     "term": "terminal_id",
 
@@ -331,11 +334,17 @@ def parse_xlsx(
     column_map, header_row = _match_headers(ws)
 
     if "terminal_id" not in column_map.values():
+        header_vals = next(ws.iter_rows(min_row=header_row, max_row=header_row, values_only=True))
+        detected = []
+        for col_idx, cell in enumerate(header_vals, start=1):
+            norm = _normalize_header(cell)
+            detected.append(f"{get_column_letter(col_idx)}: '{cell}' -> '{norm}'")
         wb.close()
         raise ValueError(
             "Не удалось определить колонку Terminal ID. "
-            "Проверьте заголовки XLSX."
+            f"Распознанная строка заголовка #{header_row}: [" + ", ".join(detected) + "]"
         )
+
 
     records: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
