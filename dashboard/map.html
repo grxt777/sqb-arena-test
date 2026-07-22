@@ -833,12 +833,23 @@ function makeIcon(status) {
 }
 
 function initMarkers() {
+  const points = [];
   ATM_META.forEach(atm => {
-    const m = L.marker([atm.lat, atm.lon], { icon: makeIcon('ok') })
-      .addTo(map)
-      .on('click', () => selectAtm(atm.id));
-    markers[atm.id] = m;
+    const lat = parseFloat(atm.lat);
+    const lon = parseFloat(atm.lon);
+    if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+      const m = L.marker([lat, lon], { icon: makeIcon('ok') })
+        .addTo(map)
+        .on('click', () => selectAtm(atm.id));
+      markers[atm.id] = m;
+      points.push([lat, lon]);
+    }
   });
+  console.log(`Placed ${points.length} markers on the map out of ${ATM_META.length} ATMs`);
+  if (points.length > 0) {
+    const bounds = L.latLngBounds(points);
+    map.fitBounds(bounds, { padding: [50, 50] });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1085,21 +1096,87 @@ function handleServerMessage(msg) {
 
 }
 
+async function loadAtmsFromDb() {
+  try {
+    const res = await fetch(`${API_BASE}/api/atms?limit=5000`);
+    if (!res.ok) throw new Error('Failed to fetch ATMs from DB');
+    const data = await res.json();
+    if (data && data.atms) {
+      ATM_META = data.atms.map(a => ({
+        id:       a.terminal_id,
+        name:     a.atm_number || a.terminal_id,
+        bank:     a.branch || 'SQB',
+        address:  a.address || 'Адрес не указан',
+        lat:      a.lat,
+        lon:      a.lon,
+        capacity: a.capacity || 400000000,
+      }));
+      console.log(`Loaded ${ATM_META.length} ATMs from SQLite DB`);
+      return true;
+    }
+  } catch (err) {
+    console.warn('Failed to load ATMs from DB:', err);
+  }
+  return false;
+}
+
 // Fallback — JSON-файлы если API недоступен
 async function loadFromJSON() {
   const loaderP = document.querySelector('#loader p');
   try {
-    if (loaderP) loaderP.textContent = 'API недоступен — загружаем JSON...';
-    const tsRes = await fetch('data/timeseries.json');
-    if (!tsRes.ok) throw new Error('JSON not found');
-    const tsData = await tsRes.json();
+    if (loaderP) loaderP.textContent = 'Загрузка банкоматов из БД...';
+    
+    // Сначала пробуем загрузить реальные банкоматы из базы
+    const dbSuccess = await loadAtmsFromDb();
+    
+    if (loaderP) loaderP.textContent = 'Загрузка истории транзакций...';
+    let tsData = {};
+    try {
+      const tsRes = await fetch('data/timeseries.json');
+      if (tsRes.ok) tsData = await tsRes.json();
+    } catch (_) {}
 
+    // Определяем временные шаги симуляции
     const times = new Set();
     Object.keys(tsData).forEach(id => {
       tsData[id].forEach(r => times.add(r.transactionTime));
     });
-    allData   = tsData;
-    timeSteps = [...times].sort();
+    
+    if (times.size > 0) {
+      timeSteps = [...times].sort();
+      allData = tsData;
+    } else {
+      // Если timeseries пустой, генерируем шаги симуляции вручную (30 дней с шагом 2 часа)
+      const start = new Date('2024-10-01');
+      for (let i = 0; i < 24 * 30; i++) {
+        times.add(new Date(start.getTime() + i * 2 * 3600_000).toISOString());
+      }
+      timeSteps = [...times];
+    }
+
+    // Для каждого банкомата в ATM_META, если для него нет данных в allData, генерируем их!
+    ATM_META.forEach(atm => {
+      if (!allData[atm.id] || allData[atm.id].length === 0) {
+        let bal = atm.capacity * (0.3 + Math.random() * 0.6); // случайный стартовый баланс 30-90%
+        allData[atm.id] = timeSteps.map(t => {
+          const outcome = Math.floor(Math.random() * atm.capacity * 0.04);
+          bal = Math.max(0, bal - outcome);
+          // симуляция инкассации при падении ниже 20%
+          let is_inc = 0;
+          if (bal < atm.capacity * 0.20) {
+            bal = atm.capacity * (0.8 + Math.random() * 0.15); // заправка до 80-95%
+            is_inc = 1;
+          }
+          return {
+            transactionTime: t,
+            totalBalance: bal,
+            atm_capacity: atm.capacity,
+            is_incassation: is_inc,
+            low_cash_alert: bal < atm.capacity * 0.20 ? 1 : 0
+          };
+        });
+      }
+    });
 
     try {
       const predRes = await fetch('data/predictions.json');
@@ -1109,10 +1186,8 @@ async function loadFromJSON() {
     document.getElementById('loader').style.display = 'none';
     startSimulation();
   } catch (err) {
-    console.warn('JSON также недоступен, синтетика:', err);
-    generateSyntheticData();
+    console.warn('Ошибка при загрузке:', err);
     document.getElementById('loader').style.display = 'none';
-    startSimulation();
   }
 }
 
