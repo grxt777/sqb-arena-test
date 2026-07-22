@@ -396,6 +396,22 @@ async def get_tashkent_geojson():
     return FileResponse(str(geo_path), media_type="application/geo+json")
 
 
+@app.get("/uzbekistan_regional.geojson", summary="Границы областей Узбекистана")
+async def get_uzb_regional_geojson():
+    geo_path = BASE_DIR / "uzbekistan_regional.geojson"
+    if not geo_path.exists():
+        raise HTTPException(404, "GeoJSON не найден")
+    return FileResponse(str(geo_path), media_type="application/geo+json")
+
+
+@app.get("/uzbekistan.geojson", summary="Граница Узбекистана")
+async def get_uzb_geojson():
+    geo_path = BASE_DIR / "uzbekistan.geojson"
+    if not geo_path.exists():
+        raise HTTPException(404, "GeoJSON не найден")
+    return FileResponse(str(geo_path), media_type="application/geo+json")
+
+
 # ═══════════════════════════════════════════════════════════
 # ENTRY POINT
 # ═══════════════════════════════════════════════════════════

@@ -789,63 +789,128 @@ function getDistrictColor(name) {
   return DISTRICT_COLORS[index];
 }
 
+let countryBorderLayer = null;
+let regionsLayer = null;
 let districtsLayer = null;
 
-async function addDistrictBoundaries() {
+// 1. Граница Узбекистана (жирный контур)
+async function addUzbekistanBorder() {
   try {
-    const res = await fetch('/tashkent_districts.geojson');
-    if (!res.ok) throw new Error('geojson not found');
+    const res = await fetch('/uzbekistan.geojson');
+    if (!res.ok) throw new Error('uzbekistan.geojson not found');
     const geo = await res.json();
 
-    if (districtsLayer) map.removeLayer(districtsLayer);
-    
-    districtsLayer = L.geoJSON(geo, {
+    if (countryBorderLayer) map.removeLayer(countryBorderLayer);
+
+    countryBorderLayer = L.geoJSON(geo, {
+      style: {
+        color: '#0f172a', // темно-грифельный
+        weight: 5,       // жирная линия
+        fillOpacity: 0,  // без заливки
+      },
+      interactive: false // клики проходят сквозь границу
+    }).addTo(map);
+    console.log('Uzbekistan outer border loaded');
+  } catch (err) {
+    console.warn('Failed to load Uzbekistan border:', err);
+  }
+}
+
+// 2. Границы областей Узбекистана
+async function addRegionalBoundaries() {
+  try {
+    const res = await fetch('/uzbekistan_regional.geojson');
+    if (!res.ok) throw new Error('uzbekistan_regional.geojson not found');
+    const geo = await res.json();
+
+    if (regionsLayer) map.removeLayer(regionsLayer);
+
+    regionsLayer = L.geoJSON(geo, {
       style: function(feature) {
-        const name = feature.properties.ADM2_RU || feature.properties.ADM2_EN || 'Район';
+        const name = feature.properties.ADM1_RU || feature.properties.ADM1_EN || 'Область';
         const color = getDistrictColor(name);
         return {
-          color: color,
-          weight: 2,
+          color: '#475569', // спокойный серый цвет для границ областей
+          weight: 2.2,
           fillColor: color,
-          fillOpacity: 0.04,
-          dashArray: '6 4'
+          fillOpacity: 0.03,
         };
       },
       onEachFeature: function(feature, layer) {
         const p = feature.properties || {};
-        const nameRu = p.ADM2_RU || 'Неизвестный район';
-        const nameUz = p.ADM2_UZ || '';
-        const nameEn = p.ADM2_EN || '';
-        
+        const nameRu = p.ADM1_RU || 'Неизвестная область';
+        const nameUz = p.ADM1_UZ || '';
+        const nameEn = p.ADM1_EN || '';
+
         layer.bindPopup(`<div style="font-family:inherit;font-size:13px;">
-          <b style="font-size:14px;color:#1d2939;">${nameRu}</b><br>
-          <span style="color:#667085;font-weight:500;">${nameUz}</span>
+          <b style="font-size:14px;color:#0f172a;">${nameRu}</b><br>
+          <span style="color:#64748b;font-weight:500;">${nameUz || nameEn}</span>
         </div>`);
-        
+
         layer.on({
           mouseover: function(e) {
             const l = e.target;
             l.setStyle({
               fillOpacity: 0.12,
-              weight: 3.5
+              weight: 3
             });
           },
           mouseout: function(e) {
             const l = e.target;
             l.setStyle({
-              fillOpacity: 0.04,
-              weight: 2
+              fillOpacity: 0.03,
+              weight: 2.2
             });
           }
         });
       }
     }).addTo(map);
-    console.log('District boundaries loaded successfully');
+    console.log('Uzbekistan regional boundaries loaded');
+  } catch (err) {
+    console.warn('Failed to load regional boundaries:', err);
+  }
+}
+
+// 3. Границы районов Ташкента (тонкий контур внутри Ташкента)
+async function addDistrictBoundaries() {
+  try {
+    const res = await fetch('/tashkent_districts.geojson');
+    if (!res.ok) throw new Error('tashkent_districts.geojson not found');
+    const geo = await res.json();
+
+    if (districtsLayer) map.removeLayer(districtsLayer);
+
+    districtsLayer = L.geoJSON(geo, {
+      style: {
+        color: '#94a3b8',   // легкий светло-серый
+        weight: 1.2,        // тонкий штрих
+        fillOpacity: 0,     // прозрачный, чтобы не перекрывать заливку областей
+        dashArray: '3 3',   // пунктир
+      },
+      onEachFeature: function(feature, layer) {
+        const p = feature.properties || {};
+        const nameRu = p.ADM2_RU || 'Район';
+        const nameUz = p.ADM2_UZ || '';
+
+        layer.bindPopup(`<div style="font-family:inherit;font-size:12px;">
+          <b style="color:#334155;">Район: ${nameRu}</b><br>
+          <span style="color:#94a3b8;">${nameUz}</span>
+        </div>`);
+      }
+    }).addTo(map);
+    console.log('Tashkent district boundaries loaded');
   } catch (err) {
     console.warn('Failed to load district boundaries:', err);
   }
 }
-addDistrictBoundaries();
+
+// Инициализируем слои по порядку наложения
+async function initMapLayers() {
+  await addRegionalBoundaries();
+  await addDistrictBoundaries();
+  await addUzbekistanBorder();
+}
+initMapLayers();
 
 function makeIcon(status) {
   const colors = { ok:'#22c55e', warning:'#f59e0b', critical:'#ef4444' };
