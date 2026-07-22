@@ -274,4 +274,7 @@ start.bat
 
 
 
+
+гугл таблицы - https://docs.google.com/spreadsheets/d/1Yff_kn6WLN0PmdCbs1L8BdeFqjOj9WpFqy8VrOi5kfo/edit?hl=ru&gid=0#gid=0
+
 </div>
