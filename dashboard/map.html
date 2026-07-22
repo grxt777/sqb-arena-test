@@ -765,56 +765,87 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
 
 // Явно показываем, что проект ограничен только Юнусабадским районом.
 // Приоритет: точная граница из GeoJSON, fallback: bbox.
-const YUNUSABAD_BOUNDS = [
-  [41.330, 69.260],
-  [41.330, 69.320],
-  [41.375, 69.320],
-  [41.375, 69.260],
+const DISTRICT_COLORS = [
+  '#3b82f6', // blue
+  '#10b981', // green
+  '#8b5cf6', // purple
+  '#f59e0b', // amber
+  '#ec4899', // pink
+  '#14b8a6', // teal
+  '#f43f5e', // rose
+  '#06b6d4', // cyan
+  '#6366f1', // indigo
+  '#a855f7', // purple-500
+  '#22c55e', // green-500
+  '#eab308'  // yellow
 ];
-let yunusabadLayer = null;
 
-function addYunusabadFallbackBBox() {
-  if (yunusabadLayer) map.removeLayer(yunusabadLayer);
-  yunusabadLayer = L.polygon(YUNUSABAD_BOUNDS, {
-    color: '#38bdf8',
-    weight: 2.5,
-    fillColor: '#0ea5e9',
-    fillOpacity: 0.08,
-    dashArray: '8 6',
-  }).addTo(map).bindPopup('<b>Юнусабадский район</b><br>Выбрана только эта зона (bbox fallback)');
+function getDistrictColor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % DISTRICT_COLORS.length;
+  return DISTRICT_COLORS[index];
 }
 
-async function addYunusabadBoundary() {
+let districtsLayer = null;
+
+async function addDistrictBoundaries() {
   try {
     const res = await fetch('/tashkent_districts.geojson');
     if (!res.ok) throw new Error('geojson not found');
     const geo = await res.json();
-    const features = (geo && geo.features) || [];
-    const yunus = features.find(f => {
-      const p = f.properties || {};
-      const en = (p.ADM2_EN || '').toLowerCase();
-      const uz = (p.ADM2_UZ || '').toLowerCase();
-      const ru = (p.ADM2_RU || '').toLowerCase();
-      return en.includes('yunusobod') || uz.includes('yunusobod') || ru.includes('юнус');
-    });
-    if (!yunus) throw new Error('Yunusobod not found in geojson');
 
-    if (yunusabadLayer) map.removeLayer(yunusabadLayer);
-    yunusabadLayer = L.geoJSON(yunus, {
-      style: {
-        color: '#38bdf8',
-        weight: 3,
-        fillColor: '#0ea5e9',
-        fillOpacity: 0.08,
-        dashArray: '8 6',
+    if (districtsLayer) map.removeLayer(districtsLayer);
+    
+    districtsLayer = L.geoJSON(geo, {
+      style: function(feature) {
+        const name = feature.properties.ADM2_RU || feature.properties.ADM2_EN || 'Район';
+        const color = getDistrictColor(name);
+        return {
+          color: color,
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.04,
+          dashArray: '6 4'
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        const p = feature.properties || {};
+        const nameRu = p.ADM2_RU || 'Неизвестный район';
+        const nameUz = p.ADM2_UZ || '';
+        const nameEn = p.ADM2_EN || '';
+        
+        layer.bindPopup(`<div style="font-family:inherit;font-size:13px;">
+          <b style="font-size:14px;color:#1d2939;">${nameRu}</b><br>
+          <span style="color:#667085;font-weight:500;">${nameUz}</span>
+        </div>`);
+        
+        layer.on({
+          mouseover: function(e) {
+            const l = e.target;
+            l.setStyle({
+              fillOpacity: 0.12,
+              weight: 3.5
+            });
+          },
+          mouseout: function(e) {
+            const l = e.target;
+            l.setStyle({
+              fillOpacity: 0.04,
+              weight: 2
+            });
+          }
+        });
       }
-    }).addTo(map).bindPopup('<b>Юнусабадский район</b><br>Точная граница из GeoJSON');
+    }).addTo(map);
+    console.log('District boundaries loaded successfully');
   } catch (err) {
-    console.warn('Не удалось загрузить точную границу Юнусабада, fallback на bbox:', err);
-    addYunusabadFallbackBBox();
+    console.warn('Failed to load district boundaries:', err);
   }
 }
-addYunusabadBoundary();
+addDistrictBoundaries();
 
 function makeIcon(status) {
   const colors = { ok:'#22c55e', warning:'#f59e0b', critical:'#ef4444' };
