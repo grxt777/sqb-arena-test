@@ -550,6 +550,207 @@
       color: var(--muted) !important;
       border-radius: 10px 0 0 0;
     }
+
+    /* ── Floating Compass Button ── */
+    .map-floating-btn {
+      position: absolute;
+      top: 80px;
+      left: 10px;
+      z-index: 1000;
+      width: 34px;
+      height: 34px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      color: var(--text);
+      transition: all 0.2s ease;
+    }
+    .map-floating-btn:hover {
+      background: var(--surface-2);
+      color: var(--primary);
+      border-color: var(--primary);
+      transform: scale(1.05);
+    }
+    .map-floating-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* ── Modal Window ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(8px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s ease;
+    }
+    .modal-container {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      width: min(500px, calc(100vw - 32px));
+      max-height: min(700px, calc(100vh - 32px));
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: modal-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes modal-enter {
+      from { transform: scale(0.9) translateY(20px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .modal-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-header h3 {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, color 0.2s;
+    }
+    .modal-close:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+    .modal-close svg {
+      width: 18px;
+      height: 18px;
+    }
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .form-group label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    #region-select {
+      width: 100%;
+      background: #ffffff;
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    #region-select:focus {
+      border-color: var(--primary);
+    }
+    .atm-count-badge {
+      background: var(--surface-3);
+      color: var(--primary);
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-atm-list-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .modal-atm-list {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      max-height: 200px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-atm-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .modal-atm-item:last-child {
+      border-bottom: none;
+    }
+    .modal-atm-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1px solid var(--border-strong);
+      cursor: pointer;
+    }
+    .modal-atm-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .modal-atm-name {
+      font-weight: 750;
+      color: var(--text);
+    }
+    .modal-atm-address {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      background: var(--surface-2);
+    }
+    .modal-footer .btn {
+      width: auto;
+      margin-bottom: 0;
+    }
+
+    /* ── Marker Pulse Keyframes ── */
+    @keyframes marker-pulse {
+      0% { transform: scale(1); box-shadow: 0 0 12px #facc15, 0 0 4px rgba(0,0,0,0.1); }
+      100% { transform: scale(1.18); box-shadow: 0 0 24px #facc15, 0 0 12px rgba(250, 204, 21, 0.5); }
+    }
   </style>
 </head>
 <body>
@@ -646,6 +847,20 @@
       <span>Банкоматы</span>
       <span id="list-count" style="color:#3b82f6;font-size:11px;font-weight:700;"></span>
     </div>
+    <!-- Поиск по регионам -->
+    <div class="search-box-container" style="padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; background: var(--surface-2);">
+      <div style="position: relative; flex: 1;">
+        <i data-lucide="search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--muted); pointer-events: none;"></i>
+        <input type="text" id="left-search-input" placeholder="Поиск по региону..." style="width: 100%; padding: 8px 12px 8px 30px; border-radius: 10px; border: 1px solid var(--border); font-size: 13px; outline: none; background: #fff; color: var(--text); box-shadow: var(--shadow-sm);" oninput="onLeftSearchInput()">
+      </div>
+    </div>
+    <!-- Баннер активного фильтра -->
+    <div id="filter-banner" style="display: none; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface-3); border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--primary);">
+      <span>Регион: <span id="filter-region-name">—</span> (<span id="filter-count">—</span> ATM)</span>
+      <button onclick="clearRegionFilter()" style="background: none; border: none; color: var(--primary); cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 800; font-size: 11px;">
+        Сбросить <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+      </button>
+    </div>
     <div class="atm-list" id="atm-list"></div>
 
     <div class="route-panel">
@@ -693,6 +908,11 @@
   <div class="map-area">
     <div id="map"></div>
 
+    <!-- Floating Compass Button -->
+    <button id="compass-btn" class="map-floating-btn" onclick="openRegionModal()" title="Выбор региона">
+      <i data-lucide="compass"></i>
+    </button>
+
     <!-- Route Sidebar -->
     <div id="route-sidebar">
       <div class="rs-header">
@@ -723,6 +943,38 @@
 </div>
 </div>
 
+<!-- Modal Window for Region Search -->
+<div id="region-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h3><i data-lucide="compass" class="icon-inline"></i> Выбор региона</h3>
+      <button class="modal-close" onclick="closeRegionModal()"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="region-select">Выберите регион:</label>
+        <select id="region-select" onchange="onRegionChange()">
+          <option value="">-- Все регионы --</option>
+        </select>
+      </div>
+      
+      <div class="atm-count-badge" id="modal-atm-count">
+        <span>Выбрано банкоматов:</span>
+        <span id="modal-atm-count-val">0</span>
+      </div>
+      
+      <div class="modal-atm-list-title">Список банкоматов в регионе:</div>
+      <div class="modal-atm-list" id="modal-atm-list">
+        <!-- ATMs list will be populated here -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeRegionModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="performRegionSearch()"><i data-lucide="search" class="icon-inline"></i> Найти</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════
 // DATA
@@ -744,12 +996,203 @@ let simTimer      = null;
 let selectedId    = null;
 let markers       = {};
 
+// Global Search State
+let currentSearchQuery = "";
+let selectedRegionFromModal = null;
+let selectedAtmIdsFromModal = null; // Set of IDs (null if no modal filter is active)
+
 function hydrateIcons() {
   if (window.lucide) lucide.createIcons();
 }
 
 function appIcon(name, extra = '') {
   return `<i data-lucide="${name}" class="icon-inline ${extra}"></i>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// REGION SEARCH & FILTER FUNCTIONS
+// ═══════════════════════════════════════════════════════════
+
+function getFilteredATMs() {
+  return ATM_META.filter(atm => {
+    // 1. Filter by region/ATMs selected in modal if active
+    if (selectedAtmIdsFromModal) {
+      if (!selectedAtmIdsFromModal.has(atm.id)) return false;
+    }
+    
+    // 2. Filter by search input query if typed
+    if (currentSearchQuery) {
+      const q = currentSearchQuery.toLowerCase();
+      const name = (atm.name || "").toLowerCase();
+      const addr = (atm.address || "").toLowerCase();
+      const reg = (atm.region || "").toLowerCase();
+      const bank = (atm.bank || "").toLowerCase();
+      
+      return name.includes(q) || addr.includes(q) || reg.includes(q) || bank.includes(q);
+    }
+    
+    return true;
+  });
+}
+
+function updateMarkersHighlight(filtered) {
+  const isFiltering = currentSearchQuery !== "" || selectedAtmIdsFromModal !== null;
+  const filteredSet = new Set(filtered.map(a => a.id));
+  
+  Object.entries(markers).forEach(([id, marker]) => {
+    const st = atmState[id] || { status: 'ok' };
+    const isMatched = filteredSet.has(id);
+    
+    if (isFiltering) {
+      if (isMatched) {
+        marker.setIcon(makeIcon(st.status, true));
+        marker.setOpacity(1.0);
+        if (!map.hasLayer(marker)) marker.addTo(map);
+      } else {
+        marker.setIcon(makeIcon(st.status, false));
+        marker.setOpacity(0.25);
+      }
+    } else {
+      // Normal state (no filter)
+      marker.setIcon(makeIcon(st.status, false));
+      marker.setOpacity(1.0);
+      if (!map.hasLayer(marker)) marker.addTo(map);
+    }
+  });
+}
+
+function zoomToFiltered(filtered) {
+  if (!filtered || filtered.length === 0) return;
+  const points = [];
+  filtered.forEach(atm => {
+    const lat = parseFloat(atm.lat);
+    const lon = parseFloat(atm.lon);
+    if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+      points.push([lat, lon]);
+    }
+  });
+  if (points.length > 0) {
+    const bounds = L.latLngBounds(points);
+    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+  }
+}
+
+function onLeftSearchInput() {
+  const input = document.getElementById('left-search-input');
+  currentSearchQuery = input.value.trim();
+  renderList();
+  
+  if (currentSearchQuery) {
+    const filtered = getFilteredATMs();
+    zoomToFiltered(filtered);
+  }
+}
+
+function openRegionModal() {
+  const modal = document.getElementById('region-modal');
+  modal.style.display = 'flex';
+  
+  const select = document.getElementById('region-select');
+  select.innerHTML = '<option value="">-- Все регионы --</option>';
+  
+  const regions = [...new Set(ATM_META.map(a => a.region).filter(Boolean))].sort();
+  regions.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    select.appendChild(opt);
+  });
+  
+  if (selectedRegionFromModal) {
+    select.value = selectedRegionFromModal === "Все регионы" ? "" : selectedRegionFromModal;
+  }
+  
+  onRegionChange();
+  hydrateIcons();
+}
+
+function closeRegionModal() {
+  document.getElementById('region-modal').style.display = 'none';
+}
+
+function onRegionChange() {
+  const select = document.getElementById('region-select');
+  const region = select.value;
+  
+  const container = document.getElementById('modal-atm-list');
+  container.innerHTML = '';
+  
+  const atms = region 
+    ? ATM_META.filter(a => a.region === region)
+    : ATM_META;
+    
+  document.getElementById('modal-atm-count-val').textContent = `${atms.length} из ${atms.length}`;
+  
+  atms.forEach(atm => {
+    const item = document.createElement('div');
+    item.className = 'modal-atm-item';
+    
+    const isChecked = selectedAtmIdsFromModal 
+      ? selectedAtmIdsFromModal.has(atm.id)
+      : true;
+      
+    item.innerHTML = `
+      <input type="checkbox" id="modal-atm-${atm.id}" value="${atm.id}" ${isChecked ? 'checked' : ''} onchange="updateModalAtmCount()">
+      <div class="modal-atm-details">
+        <span class="modal-atm-name">${atm.name} (${atm.bank})</span>
+        <span class="modal-atm-address">${atm.address || 'Адрес не указан'}</span>
+      </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function updateModalAtmCount() {
+  const container = document.getElementById('modal-atm-list');
+  const checkedCount = container.querySelectorAll('input[type="checkbox"]:checked').length;
+  const totalCount = container.querySelectorAll('input[type="checkbox"]').length;
+  document.getElementById('modal-atm-count-val').textContent = `${checkedCount} из ${totalCount}`;
+}
+
+function performRegionSearch() {
+  const select = document.getElementById('region-select');
+  const region = select.value;
+  
+  const container = document.getElementById('modal-atm-list');
+  const checkedBoxes = container.querySelectorAll('input[type="checkbox"]:checked');
+  
+  if (checkedBoxes.length === 0) {
+    alert('Пожалуйста, выберите хотя бы один банкомат или отмените поиск.');
+    return;
+  }
+  
+  selectedRegionFromModal = region || "Все регионы";
+  selectedAtmIdsFromModal = new Set(Array.from(checkedBoxes).map(cb => cb.value));
+  
+  const banner = document.getElementById('filter-banner');
+  const regionNameEl = document.getElementById('filter-region-name');
+  const countEl = document.getElementById('filter-count');
+  
+  regionNameEl.textContent = selectedRegionFromModal;
+  countEl.textContent = selectedAtmIdsFromModal.size;
+  banner.style.display = 'flex';
+  
+  closeRegionModal();
+  renderList();
+  
+  const filtered = getFilteredATMs();
+  zoomToFiltered(filtered);
+}
+
+function clearRegionFilter() {
+  selectedRegionFromModal = null;
+  selectedAtmIdsFromModal = null;
+  
+  document.getElementById('filter-banner').style.display = 'none';
+  document.getElementById('left-search-input').value = '';
+  currentSearchQuery = '';
+  
+  renderList();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -912,9 +1355,25 @@ async function initMapLayers() {
 }
 initMapLayers();
 
-function makeIcon(status) {
+function makeIcon(status, isHighlighted = false) {
   const colors = { ok:'#22c55e', warning:'#f59e0b', critical:'#ef4444' };
   const c = colors[status] || '#94a3b8';
+  
+  if (isHighlighted) {
+    return L.divIcon({
+      className: '',
+      html: `<div class="marker-highlighted" style="
+        width:34px;height:34px;border-radius:50%;
+        background:${c};border:3.5px solid #facc15;
+        box-shadow:0 0 15px #facc15, 0 0 6px ${c};
+        display:flex;align-items:center;justify-content:center;
+        color:#fff;
+        animation: marker-pulse 1.2s infinite alternate;
+      ">${appIcon('credit-card')}</div>`,
+      iconSize: [34,34], iconAnchor: [17,17],
+    });
+  }
+  
   return L.divIcon({
     className: '',
     html: `<div style="
@@ -1066,10 +1525,12 @@ function handleServerMessage(msg) {
           atmEntry.lat = m.lat;
           atmEntry.lon = m.lon;
           atmEntry.capacity = m.capacity;
+          atmEntry.region = m.region; // сохранить регион
         } else {
           ATM_META.push({
             id: id, name: m.name, bank: m.bank,
             address: m.address, lat: m.lat, lon: m.lon, capacity: m.capacity,
+            region: m.region, // сохранить регион
           });
         }
       });
@@ -1112,7 +1573,10 @@ function handleServerMessage(msg) {
           cashOk12h:        !!st.cash_ok_12h,
         };
 
-        if (markers[id]) markers[id].setIcon(makeIcon(status));
+        if (markers[id]) {
+          const isHighlighted = selectedAtmIdsFromModal && selectedAtmIdsFromModal.has(id);
+          markers[id].setIcon(makeIcon(status, isHighlighted));
+        }
       });
 
       // Статистика
@@ -1175,6 +1639,7 @@ function handleServerMessage(msg) {
           lon:      a.lon,
           capacity: a.capacity || 50_000_000,
           profile:  a.profile || 'residential',
+          region:   a.region, // сохранить регион
         }));
       }
       document.getElementById('loader').style.display = 'none';
@@ -1206,6 +1671,7 @@ async function loadAtmsFromDb() {
         lat:      a.lat,
         lon:      a.lon,
         capacity: a.capacity || 400000000,
+        region:   a.region, // сохранить регион
       }));
       console.log(`Loaded ${ATM_META.length} ATMs from SQLite DB`);
       return true;
@@ -1350,7 +1816,10 @@ function tick() {
     };
 
     // обновляем маркер
-    if (markers[atm.id]) markers[atm.id].setIcon(makeIcon(status));
+    if (markers[atm.id]) {
+      const isHighlighted = selectedAtmIdsFromModal && selectedAtmIdsFromModal.has(atm.id);
+      markers[atm.id].setIcon(makeIcon(status, isHighlighted));
+    }
   });
 
   document.getElementById('s-total').textContent    = ATM_META.length;
@@ -1384,9 +1853,11 @@ function startSimulation() {
 
 function renderList() {
   const container = document.getElementById('atm-list');
+  const filtered = getFilteredATMs();
+  
   // sort: critical first, then warning, then ok
   const order = { critical: 0, warning: 1, ok: 2 };
-  const sorted = [...ATM_META].sort((a,b) => {
+  const sorted = [...filtered].sort((a,b) => {
     const sa = atmState[a.id]?.status || 'ok';
     const sb = atmState[b.id]?.status || 'ok';
     return (order[sa]||0) - (order[sb]||0);
@@ -1482,7 +1953,8 @@ function renderList() {
     container.appendChild(card);
   });
 
-  document.getElementById('list-count').textContent = ATM_META.length + ' ATM';
+  document.getElementById('list-count').textContent = filtered.length + ' ATM';
+  updateMarkersHighlight(filtered);
   hydrateIcons();
 }
 
