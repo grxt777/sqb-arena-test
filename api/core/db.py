@@ -85,6 +85,25 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_atms_region ON atms(region);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_atms_branch ON atms(branch);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_atms_local ON atms(local_code);")
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS branches (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                number          TEXT,
+                local_code      TEXT UNIQUE,
+                region          TEXT,
+                address         TEXT,
+                lat             REAL,
+                lon             REAL,
+                incassation     INTEGER NOT NULL DEFAULT 0,
+                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_branches_region ON branches(region);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_branches_inc ON branches(incassation);")
     log.info("БД инициализирована: %s", DB_PATH)
 
 
@@ -284,6 +303,114 @@ def bulk_insert_atms(records: List[Dict[str, Any]]) -> Dict[str, int]:
                         rec.get("lat"),
                         rec.get("lon"),
                         rec.get("capacity") or DEFAULT_CAPACITY,
+                    ),
+                )
+                stats["inserted"] += 1
+    return stats
+
+
+# ── Филиалы (branches) ─────────────────────────────────────────
+
+def count_branches() -> int:
+    with _connect() as conn:
+        cur = conn.execute("SELECT COUNT(*) AS c FROM branches;")
+        return int(cur.fetchone()["c"])
+
+
+def list_branches_full(
+    region: Optional[str] = None,
+    incassation: Optional[int] = None,
+    limit: int = 5000,
+    offset: int = 0,
+) -> List[Dict[str, Any]]:
+    sql = "SELECT * FROM branches WHERE 1=1"
+    params: list[Any] = []
+    if region:
+        sql += " AND region = ?"
+        params.append(region)
+    if incassation is not None:
+        sql += " AND incassation = ?"
+        params.append(int(incassation))
+    sql += " ORDER BY id LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    with _connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def get_branch(local_code: str) -> Optional[Dict[str, Any]]:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM branches WHERE local_code = ?", (local_code,)
+        ).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def truncate_branches() -> int:
+    """Удаляет все филиалы. Возвращает количество удалённых строк."""
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM branches;")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name='branches';")
+        return cur.rowcount
+
+
+def bulk_insert_branches(records: List[Dict[str, Any]]) -> Dict[str, int]:
+    """
+    Массовая вставка/обновление филиалов по local_code.
+    Использует UPSERT по local_code; если local_code отсутствует —
+    вставляет новую запись без уникальности (считается как inserted).
+    """
+    stats = {"inserted": 0, "updated": 0, "skipped": 0}
+    with _connect() as conn:
+        for rec in records:
+            local_code = (rec.get("local_code") or "").strip() or None
+
+            existing = None
+            if local_code:
+                existing = conn.execute(
+                    "SELECT id FROM branches WHERE local_code = ?", (local_code,)
+                ).fetchone()
+
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE branches SET
+                        number      = ?,
+                        region      = ?,
+                        address     = ?,
+                        lat         = ?,
+                        lon         = ?,
+                        incassation = ?,
+                        updated_at  = datetime('now')
+                    WHERE local_code = ?
+                    """,
+                    (
+                        rec.get("number"),
+                        rec.get("region"),
+                        rec.get("address"),
+                        rec.get("lat"),
+                        rec.get("lon"),
+                        int(rec.get("incassation") or 0),
+                        local_code,
+                    ),
+                )
+                stats["updated"] += 1
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO branches (
+                        number, local_code, region, address, lat, lon, incassation
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        rec.get("number"),
+                        local_code,
+                        rec.get("region"),
+                        rec.get("address"),
+                        rec.get("lat"),
+                        rec.get("lon"),
+                        int(rec.get("incassation") or 0),
                     ),
                 )
                 stats["inserted"] += 1

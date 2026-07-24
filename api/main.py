@@ -11,6 +11,11 @@ REST endpoints:
   GET   /api/atms/stats                  → статистика по областям/филиалам
   POST  /api/atms/{terminal_id}/balance  → обновить баланс
   POST  /api/atms/balances/bulk          → массовое обновление
+  GET   /api/branches                    → список филиалов из БД
+  GET   /api/branches/{local_code}       → детали филиала
+  GET   /api/branches/stats              → статистика по филиалам
+  POST  /api/branches/import             → загрузка XLSX реестра филиалов
+  POST  /api/branches/import/clear       → очистить БД филиалов
   GET   /api/alerts                      → ATM в critical/warning
   GET   /api/baseline                    → сравнение ML vs baseline
 
@@ -37,8 +42,10 @@ from core.config import BASE_DIR
 from core.db import (
     init_db, count_atms, list_atms, get_atm, list_regions, list_branches,
     truncate_atms, bulk_insert_atms, update_balance, bulk_update_balances,
+    count_branches, list_branches_full, get_branch, truncate_branches,
+    bulk_insert_branches,
 )
-from core.importer import parse_xlsx, REQUIRED_FIELDS
+from core.importer import parse_xlsx, REQUIRED_FIELDS, parse_branches_xlsx
 
 logging.basicConfig(
     level=logging.INFO,
@@ -274,6 +281,118 @@ async def import_atms(
 async def clear_atms():
     deleted = truncate_atms()
     return {"ok": True, "deleted": deleted, "atms_in_db": count_atms()}
+
+
+# ═══════════════════════════════════════════════════════════
+# ФИЛИАЛЫ — список / детали
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/branches", summary="Список филиалов (с фильтрами)")
+async def get_branches(
+    region: Optional[str] = Query(None, description="Регион"),
+    incassation: Optional[int] = Query(None, ge=0, le=1, description="0 — без инкассации, 1 — с инкассацией"),
+    limit: int = Query(2000, ge=1, le=5000),
+    offset: int = Query(0, ge=0),
+):
+    rows = list_branches_full(region=region, incassation=incassation, limit=limit, offset=offset)
+    return {
+        "branches": rows,
+        "count": len(rows),
+        "total_in_db": count_branches(),
+        "filters": {"region": region, "incassation": incassation},
+    }
+
+
+@app.get("/api/branches/stats", summary="Статистика по филиалам")
+async def get_branches_stats():
+    all_branches = list_branches_full(limit=5000)
+    with_inc = sum(1 for b in all_branches if b.get("incassation") == 1)
+    without_inc = sum(1 for b in all_branches if b.get("incassation") != 1)
+    regions: Dict[str, int] = {}
+    for b in all_branches:
+        r = b.get("region") or "Не указан"
+        regions[r] = regions.get(r, 0) + 1
+    return {
+        "total": count_branches(),
+        "with_incassation": with_inc,
+        "without_incassation": without_inc,
+        "by_region": [{"region": r, "count": c} for r, c in sorted(regions.items(), key=lambda x: -x[1])],
+    }
+
+
+@app.get("/api/branches/{local_code}", summary="Детали филиала по локал коду")
+async def get_branch_detail(local_code: str):
+    branch = get_branch(local_code)
+    if not branch:
+        raise HTTPException(404, f"Филиал с local_code={local_code!r} не найден")
+    return branch
+
+
+# ═══════════════════════════════════════════════════════════
+# ИМПОРТ ФИЛИАЛОВ (XLSX)
+# ═══════════════════════════════════════════════════════════
+
+@app.post("/api/branches/import", summary="Импорт филиалов из XLSX")
+async def import_branches(
+    file: UploadFile = File(..., description="XLSX с реестром филиалов"),
+    replace: bool = Query(
+        False,
+        description="Если True — сначала очистить таблицу, потом импортировать",
+    ),
+):
+    """
+    Ожидаемая структура XLSX:
+      №          — порядковый номер
+      Локал код  — уникальный код филиала
+      Регион     — область / регион
+      Адрес      — адрес филиала
+      Lat        — широта
+      Lon        — долгота
+      Инкассация — 0 (не для выезда инкассаторов) / 1 (для выезда инкассаторов)
+    """
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(400, "Ожидается .xlsx файл")
+
+    tmp_dir = tempfile.mkdtemp(prefix="branch_import_")
+    tmp_path = os.path.join(tmp_dir, file.filename)
+    try:
+        with open(tmp_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        try:
+            parsed = parse_branches_xlsx(tmp_path)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+        if replace:
+            deleted = truncate_branches()
+        else:
+            deleted = 0
+
+        stats = bulk_insert_branches(parsed["records"])
+
+        return {
+            "ok": True,
+            "filename": file.filename,
+            "header_row": parsed["header_row"],
+            "columns_detected": parsed["columns"],
+            "total_rows_in_file": parsed["total_rows"],
+            "deleted_before_import": deleted,
+            "imported": stats["inserted"],
+            "updated": stats["updated"],
+            "skipped_no_local_code": stats["skipped"],
+            "validation_errors": parsed["errors"][:50],
+            "validation_errors_count": len(parsed["errors"]),
+            "branches_in_db_after": count_branches(),
+        }
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.post("/api/branches/import/clear", summary="Очистить все филиалы из БД")
+async def clear_branches():
+    deleted = truncate_branches()
+    return {"ok": True, "deleted": deleted, "branches_in_db": count_branches()}
 
 
 # ═══════════════════════════════════════════════════════════

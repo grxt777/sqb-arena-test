@@ -400,3 +400,230 @@ def parse_xlsx(
         "header_row": header_row,
         "columns": {get_column_letter(k): v for k, v in column_map.items()},
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ИМПОРТ ФИЛИАЛОВ (branches)
+# ═══════════════════════════════════════════════════════════════════
+#
+# Ожидаемая структура XLSX:
+#   № — порядковый номер
+#   Локал код — уникальный код филиала
+#   Регион — область / регион
+#   Адрес — адрес филиала
+#   Lat — широта
+#   Lon — долгота
+#   Инкассация — 0 (не предназначен для выезда инкассаторов) / 1 (предназначен)
+
+BRANCH_HEADER_ALIASES: Dict[str, str] = {
+    # № — порядковый номер
+    "nomer": "number",
+    "no": "number",
+    "n": "number",
+    "номер": "number",
+    "": "number",
+
+    # Локал код
+    "локалкод": "local_code",
+    "локал_код": "local_code",
+    "local_code": "local_code",
+    "localcode": "local_code",
+    "локал": "local_code",
+
+    # Регион
+    "регион": "region",
+    "region": "region",
+    "область": "region",
+    "худуд": "region",
+    "viloyat": "region",
+    "вилоят": "region",
+
+    # Адрес
+    "адрес": "address",
+    "address": "address",
+    "манзили": "address",
+    "манзил": "address",
+    "manzil": "address",
+
+    # Lat
+    "lat": "lat",
+    "latitude": "lat",
+    "широта": "lat",
+
+    # Lon
+    "lon": "lon",
+    "long": "lon",
+    "longitude": "lon",
+    "lng": "lon",
+    "долгота": "lon",
+
+    # Инкассация
+    "инкассация": "incassation",
+    "incassation": "incassation",
+    "инкассацио": "incassation",
+}
+
+BRANCH_REQUIRED_FIELDS = ("local_code",)
+
+
+def _match_branch_headers(ws) -> Tuple[Dict[int, str], int]:
+    """
+    Аналог _match_headers, но для реестра филиалов.
+    Ожидаемые колонки: № локал код регион адрес lat lon инкассация
+    """
+    header_row_idx = None
+    for row_idx in range(1, min(6, ws.max_row + 1)):
+        row = next(ws.iter_rows(min_row=row_idx, max_row=row_idx, values_only=True))
+        normalized = [_normalize_header(c) for c in row]
+        hits = sum(1 for n in normalized if n in BRANCH_HEADER_ALIASES)
+        if hits >= 3:
+            header_row_idx = row_idx
+            break
+
+    column_map: Dict[int, str] = {}
+
+    if header_row_idx is None:
+        # fallback: позиционный маппинг № локал_код регион адрес lat lon инкассация
+        position_map = {
+            1: "number",
+            2: "local_code",
+            3: "region",
+            4: "address",
+            5: "lat",
+            6: "lon",
+            7: "incassation",
+        }
+        for col_idx, field in position_map.items():
+            column_map[col_idx] = field
+        log.warning(
+            "Заголовки XLSX (филиалы) не распознаны — используется позиционный маппинг"
+        )
+        return column_map, 1
+
+    header_row = next(
+        ws.iter_rows(min_row=header_row_idx, max_row=header_row_idx, values_only=True)
+    )
+
+    for col_idx, cell in enumerate(header_row, start=1):
+        norm = _normalize_header(cell)
+        if norm in BRANCH_HEADER_ALIASES:
+            field = BRANCH_HEADER_ALIASES[norm]
+            if field not in column_map.values():
+                column_map[col_idx] = field
+
+    if "number" not in column_map.values():
+        for col_idx, cell in enumerate(header_row, start=1):
+            norm = _normalize_header(cell)
+            if norm in ("", "n", "no", "номер"):
+                column_map[col_idx] = "number"
+                break
+
+    return column_map, header_row_idx
+
+
+def _parse_incassation(value: Any) -> int:
+    """Парсит колонку 'Инкассация': 0 — не выездной, 1 — выездной."""
+    if value is None or value == "":
+        return 0
+    s = str(value).strip().lower()
+    if s in ("1", "1.0", "true", "да", "yes", "ha", "ha'"):
+        return 1
+    if s in ("0", "0.0", "false", "нет", "no", "yoq", "йук"):
+        return 0
+    try:
+        return 1 if int(float(value)) != 0 else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_branches_xlsx(
+    path: str | Path,
+    sheet_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Парсит XLSX с реестром филиалов и возвращает:
+      {
+        "records":     List[Dict]   — распарсенные записи
+        "errors":      List[Dict]   — список ошибок построчно
+        "total_rows":  int
+        "header_row":  int
+        "columns":     Dict[int, str]   — маппинг колонок
+      }
+
+    Колонки: № локал код регион адрес lat lon инкассация
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Файл не найден: {path}")
+
+    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+    ws = wb[sheet_name] if sheet_name else wb.active
+
+    column_map, header_row = _match_branch_headers(ws)
+
+    if "local_code" not in column_map.values():
+        header_vals = next(ws.iter_rows(min_row=header_row, max_row=header_row, values_only=True))
+        detected = []
+        for col_idx, cell in enumerate(header_vals, start=1):
+            norm = _normalize_header(cell)
+            detected.append(f"{get_column_letter(col_idx)}: '{cell}' -> '{norm}'")
+        wb.close()
+        raise ValueError(
+            "Не удалось определить колонку 'Локал код'. "
+            f"Распознанная строка заголовка #{header_row}: [" + ", ".join(detected) + "]"
+        )
+
+    records: List[Dict[str, Any]] = []
+    errors: List[Dict[str, Any]] = []
+    seen_local_codes: set[str] = set()
+    total_rows = 0
+
+    for row_idx, row in enumerate(
+        ws.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1
+    ):
+        total_rows += 1
+        if not row or all(c is None or (isinstance(c, str) and not c.strip()) for c in row):
+            continue
+
+        record: Dict[str, Any] = {}
+        for col_idx, field in column_map.items():
+            if col_idx - 1 >= len(row):
+                value = None
+            else:
+                value = row[col_idx - 1]
+            if field in ("lat", "lon"):
+                record[field] = _parse_coord(value)
+            elif field == "incassation":
+                record[field] = _parse_incassation(value)
+            else:
+                record[field] = _parse_str(value)
+
+        local_code = record.get("local_code")
+        if not local_code:
+            errors.append({
+                "row": row_idx,
+                "error": "Пустой Локал код",
+            })
+            continue
+
+        if local_code in seen_local_codes:
+            errors.append({
+                "row": row_idx,
+                "local_code": local_code,
+                "error": "Дубликат Локал кода в файле",
+            })
+            continue
+        seen_local_codes.add(local_code)
+
+        record.setdefault("incassation", 0)
+        records.append(record)
+
+    wb.close()
+
+    return {
+        "records": records,
+        "errors": errors,
+        "total_rows": total_rows,
+        "header_row": header_row,
+        "columns": {get_column_letter(k): v for k, v in column_map.items()},
+    }

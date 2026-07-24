@@ -769,7 +769,7 @@
   <nav class="top-nav">
     <a href="/dashboard/index.html"><i data-lucide="home" class="icon-inline"></i> Главная</a>
     <a href="/dashboard/analytics.html"><i data-lucide="bar-chart-3" class="icon-inline"></i> Аналитика</a>
-    <a href="/dashboard/import.html"><i data-lucide="file-spreadsheet" class="icon-inline"></i> Импорт реестра</a>
+    <a href="/dashboard/import-select.html"><i data-lucide="file-spreadsheet" class="icon-inline"></i> Импорт реестра</a>
   </nav>
   <span class="time-label">Симуляция:&nbsp;</span>
   <span id="sim-time">—</span>
@@ -912,6 +912,25 @@
     <button id="compass-btn" class="map-floating-btn" onclick="openRegionModal()" title="Выбор региона">
       <i data-lucide="compass"></i>
     </button>
+
+    <!-- Floating Branches Toggle Button -->
+    <button id="branches-toggle-btn" class="map-floating-btn" onclick="toggleBranchesLayer()" title="Показать/скрыть филиалы" style="top:122px;">
+      <i data-lucide="building-2"></i>
+    </button>
+
+    <!-- Branches Legend -->
+    <div id="branches-legend" style="display:none;position:absolute;bottom:14px;left:10px;z-index:1000;background:rgba(255,255,255,.95);border:1px solid var(--border);border-radius:14px;padding:10px 14px;font-size:11px;box-shadow:var(--shadow-md);backdrop-filter:blur(12px);">
+      <div style="font-weight:800;color:var(--text);margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;">Филиалы</div>
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+        <span style="width:14px;height:14px;border-radius:4px;background:#7c3aed;display:inline-block;border:2px solid #fff;box-shadow:0 0 6px #7c3aed99;"></span>
+        <span style="color:var(--muted);">Для выезда инкассаторов</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;">
+        <span style="width:14px;height:14px;border-radius:4px;background:#64748b;display:inline-block;border:2px solid #fff;box-shadow:0 0 6px #64748b99;"></span>
+        <span style="color:var(--muted);">Обычный филиал</span>
+      </div>
+      <div id="branches-legend-count" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--primary);font-weight:700;"></div>
+    </div>
 
     <!-- Route Sidebar -->
     <div id="route-sidebar">
@@ -1405,6 +1424,96 @@ function initMarkers() {
     const bounds = L.latLngBounds(points);
     map.fitBounds(bounds, { padding: [50, 50] });
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ФИЛИАЛЫ — отдельный слой на карте
+// ═══════════════════════════════════════════════════════════
+
+let branchesLayer   = null;
+let branchesVisible = false;
+let branchesLoaded  = false;
+
+function makeBranchIcon(incassation) {
+  const c = incassation ? '#7c3aed' : '#64748b';
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:26px;height:26px;border-radius:7px;
+      background:${c};border:2.5px solid #fff;
+      box-shadow:0 0 10px ${c}99;
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;
+    ">${appIcon('building-2')}</div>`,
+    iconSize: [26, 26], iconAnchor: [13, 13],
+  });
+}
+
+async function loadBranches() {
+  try {
+    const res = await fetch(`${API_BASE}/api/branches?limit=5000`);
+    if (!res.ok) throw new Error('Failed to fetch branches');
+    const data = await res.json();
+    const branches = data.branches || [];
+
+    if (branchesLayer) map.removeLayer(branchesLayer);
+    branchesLayer = L.layerGroup();
+
+    let withInc = 0, withoutInc = 0;
+    branches.forEach(b => {
+      const lat = parseFloat(b.lat);
+      const lon = parseFloat(b.lon);
+      if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) return;
+
+      const isInc = !!b.incassation;
+      if (isInc) withInc++; else withoutInc++;
+
+      const marker = L.marker([lat, lon], { icon: makeBranchIcon(isInc) });
+      marker.bindPopup(`
+        <div class="popup-title">${appIcon('building-2')}${b.number ? '№' + b.number + ' · ' : ''}${b.local_code || ''}</div>
+        <div class="popup-row">Регион: <span>${b.region || '—'}</span></div>
+        <div class="popup-row">Адрес: <span>${b.address || '—'}</span></div>
+        <div class="popup-row">Тип: <span style="color:${isInc ? '#7c3aed' : '#64748b'};font-weight:700">
+          ${isInc ? 'Для выезда инкассаторов' : 'Обычный филиал'}
+        </span></div>
+      `);
+      branchesLayer.addLayer(marker);
+    });
+
+    document.getElementById('branches-legend-count').textContent =
+      `Инкассаторских: ${withInc} · Обычных: ${withoutInc} · Всего: ${branches.length}`;
+
+    branchesLoaded = true;
+    console.log(`Loaded ${branches.length} branches (incassation: ${withInc}, regular: ${withoutInc})`);
+  } catch (err) {
+    console.warn('Failed to load branches:', err);
+  }
+}
+
+async function toggleBranchesLayer() {
+  const btn = document.getElementById('branches-toggle-btn');
+  const legend = document.getElementById('branches-legend');
+
+  if (!branchesLoaded) {
+    await loadBranches();
+  }
+
+  branchesVisible = !branchesVisible;
+
+  if (branchesVisible) {
+    if (branchesLayer) branchesLayer.addTo(map);
+    legend.style.display = 'block';
+    btn.style.background = '#7c3aed';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#7c3aed';
+  } else {
+    if (branchesLayer) map.removeLayer(branchesLayer);
+    legend.style.display = 'none';
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+  }
+  hydrateIcons();
 }
 
 // ═══════════════════════════════════════════════════════════
